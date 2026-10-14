@@ -1,6 +1,6 @@
 services:
 
-  # 1. LOAD BALANCER
+  # 0. LOAD BALANCER (public entrypoint)
   load-balancer:
     image: nginx:alpine
     container_name: load-balancer
@@ -11,27 +11,44 @@ services:
     networks:
       - lab-net
     depends_on:
-      - mock-svc-1
-      - mock-svc-2
+      - api-gateway-1
 
+  # 1. API GATEWAY (one per cluster; duplicate for cluster B later)
+  api-gateway-1:
+    image: traefik:v3
+    container_name: api-gateway-1
+    command:
+      - --api.insecure=true                     # dashboard + API on :8080 (lab only)
+      - --providers.consulcatalog.endpoint.address=consul-1:8500
+      - --providers.consulcatalog.endpoint.scheme=http
+      - --providers.consulcatalog.exposedByDefault=false
+      - --entrypoints.web.address=:80
+    ports:
+      - "8080:8080"                             # Traefik dashboard
+    networks:
+      - lab-net
+    depends_on:
+      - consul-1
+
+  # 2. SERVICE REGISTRY (one Consul agent per cluster)
+  consul-1:
+    image: hashicorp/consul:1.20
+    container_name: consul-1
+    command: agent -server -bootstrap-expect=1 -client=0.0.0.0 -ui -data-dir=/consul/data
+    ports:
+      - "8500:8500"                             # HTTP API + UI
+    networks:
+      - lab-net
+
+  # 3. MOCK SERVICE (replicas self-register with Consul at runtime)
   mock-svc-1:
     build: ./mock-svc
-    container_name: mock-svc-1
     environment:
-      - ID=1
-    ports:
-      - "8081:8888"
+      - CONSUL_ADDR=consul-1
     networks:
       - lab-net
-  mock-svc-2:
-    build: ./mock-svc
-    container_name: mock-svc-2
-    environment:
-      - ID=2
-    ports:
-      - "8082:8888"
-    networks:
-      - lab-net
+    depends_on:
+      - consul-1
 
 networks:
   lab-net:
