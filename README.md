@@ -15,7 +15,7 @@ To start the whole architecture run ```docker compose up -d --build``` or ```sta
 At "http://localhost:80" you can check the mock service answer to your HTTP GET request ;>
 
 ## Stop
-To stop the whole architecture run "docker compose down" or "./stop.sh"
+To stop the whole architecture run ```docker compose down``` or ```stop.sh```
 
 # Architecture
 The architecture is composed of multiple mock services, API gateways, service registries and a load balancer.
