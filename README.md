@@ -14,8 +14,6 @@ To start the whole architecture run ```docker compose up -d --build``` or ```sta
 ### HTTP request
 At "http://localhost:80" you can check the mock service answer to your HTTP GET request ;>
 
-
-
 ## Stop
 To stop the whole architecture run "docker compose down" or "./stop.sh"
 
