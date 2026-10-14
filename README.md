@@ -28,6 +28,13 @@ Exactly 2 mock services (mock-svc) exist for each cluster. They register on Cons
 
 On top of the 2 clusters, we have exactly 1 NGINX "edge" load balancer.
 
+## Endpoints
+- mock-svc http://localhost
+- Traefik API-Gateway Cluster 1 http://localhost:8081
+- Traefik API-Gateway Cluster 2 http://localhost:8082
+- Consul Service Registry Cluster 1 http://localhost:8501
+- Consul Service Registry Cluster 2 http://localhost:8502
+
 ## Communcations flow
 The web request reaches the edge loadbalancer. It chooses a cluster to serve said request via round robin policy.
 
