@@ -15,7 +15,7 @@ services:
 
   # 1. API GATEWAY (one per cluster; duplicate for cluster B later)
   api-gateway-1:
-    image: traefik:v3
+    image: traefik:latest
     container_name: api-gateway-1
     command:
       - --api.insecure=true                     # dashboard + API on :8080 (lab only)
@@ -32,7 +32,7 @@ services:
       - consul-1
   
   api-gateway-2:
-    image: traefik:v3
+    image: traefik:latest
     container_name: api-gateway-2
     command:
       - --api.insecure=true                     # dashboard + API on :8080 (lab only)
@@ -50,7 +50,7 @@ services:
 
   # 2. SERVICE REGISTRY (one Consul agent per cluster)
   consul-1:
-    image: hashicorp/consul:1.20
+    image: hashicorp/consul:latest
     container_name: consul-1
     command: agent -server -bootstrap-expect=1 -client=0.0.0.0 -ui -data-dir=/consul/data
     ports:
@@ -59,7 +59,7 @@ services:
       - cluster-net-1
   
   consul-2:
-    image: hashicorp/consul:1.20
+    image: hashicorp/consul:latest
     container_name: consul-2
     command: agent -server -bootstrap-expect=1 -client=0.0.0.0 -ui -data-dir=/consul/data
     ports:

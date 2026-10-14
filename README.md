@@ -1,24 +1,39 @@
 # babylon-cloud-auth
 An authentication architecture for distributed system running with a mock cluster of services.
 
-## Run and access the services
+# Requirements
+- Docker
 
-Start the stack with:
+# Get Started
 
-```sh
-docker compose up -d
-```
+Brief summary on how to run this architecture 
 
-The public entrypoint is `http://localhost`. The protected mock service is available at:
+## Run
+To start the whole architecture run ```docker compose up -d --build``` or ```start.sh```
 
-```text
-http://localhost/api/mock/get
-```
+### HTTP request
+At "http://localhost:80" you can check the mock service answer to your HTTP GET request ;>
 
-Opening that URL shows the OAuth2 sign-in page, which sends you to Keycloak. Use the imported demo account (`demo` / `demo`) or
-create another user in the Keycloak admin console at `http://localhost:8443` (admin / admin).
-The Keycloak realm used by the gateway is `babylon`.
 
-The gateway dashboard is available at `http://localhost:8090`. A request to `/` returns 404
-because no application route is configured for the root path; use `/api/mock/...` or add another
-service to [traefik/dynamic.yml](./traefik/dynamic.yml).
+
+## Stop
+To stop the whole architecture run "docker compose down" or "./stop.sh"
+
+# Architecture
+The architecture is composed of multiple mock services, API gateways, service registries and a load balancer.
+
+In particular, we have 2 clusters, each cluster has its own network. Inside each cluster there's exactly 1 Traefik API Gateway and exactly 1 Consul Service Registry. The API gateway service endpoints are updated at runtime by consulting the Service Registry.
+
+Exactly 2 mock services (mock-svc) exist for each cluster. They register on Consul at start-time and provide an health check every x-amount of seconds. When the process dies, they de-register from Consul.
+
+On top of the 2 clusters, we have exactly 1 NGINX "edge" load balancer.
+
+## Communcations flow
+The web request reaches the edge loadbalancer. It chooses a cluster to serve said request via round robin policy.
+
+Once the cluster is chosen, the request gets passed to the Cluster's API Gateway. At this point the gateway chooses which mock-svc instance is going to actually serve the answer. The policy here is once again round-robin.
+
+So 4 requests in a row would land on mock-svc-1-1 (cluster 1, instance 1), then mock-svc-2-1 (cluster 2, instance 1), then mock-svc-1-2 and finally mock-svc-2-2. 
+
+# To be implemented
+So far, no authentication flow has been implemented nor any authentication systems.
