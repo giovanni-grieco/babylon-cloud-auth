@@ -9,7 +9,7 @@ services:
     volumes:
       - ./nginx.conf:/etc/nginx/nginx.conf:ro
     networks:
-      - lab-net
+      - edge-net
     depends_on:
       - api-gateway-1
 
@@ -24,11 +24,29 @@ services:
       - --providers.consulcatalog.exposedByDefault=false
       - --entrypoints.web.address=:80
     ports:
-      - "8080:8080"                             # Traefik dashboard
+      - "8081:8080"                             # Traefik dashboard
     networks:
-      - lab-net
+      - edge-net
+      - cluster-net-1
     depends_on:
       - consul-1
+  
+  api-gateway-2:
+    image: traefik:v3
+    container_name: api-gateway-2
+    command:
+      - --api.insecure=true                     # dashboard + API on :8080 (lab only)
+      - --providers.consulcatalog.endpoint.address=consul-2:8500
+      - --providers.consulcatalog.endpoint.scheme=http
+      - --providers.consulcatalog.exposedByDefault=false
+      - --entrypoints.web.address=:80
+    ports:
+      - "8082:8080"                             # Traefik dashboard
+    networks:
+      - edge-net
+      - cluster-net-2
+    depends_on:
+      - consul-2
 
   # 2. SERVICE REGISTRY (one Consul agent per cluster)
   consul-1:
@@ -36,20 +54,66 @@ services:
     container_name: consul-1
     command: agent -server -bootstrap-expect=1 -client=0.0.0.0 -ui -data-dir=/consul/data
     ports:
-      - "8500:8500"                             # HTTP API + UI
+      - "8501:8500"                             # HTTP API + UI
     networks:
-      - lab-net
+      - cluster-net-1
+  
+  consul-2:
+    image: hashicorp/consul:1.20
+    container_name: consul-2
+    command: agent -server -bootstrap-expect=1 -client=0.0.0.0 -ui -data-dir=/consul/data
+    ports:
+      - "8502:8500"                             # HTTP API + UI
+    networks:
+      - cluster-net-2
 
   # 3. MOCK SERVICE (replicas self-register with Consul at runtime)
-  mock-svc-1:
+  mock-svc-1-1:
     build: ./mock-svc
+    container_name: mock-svc-1-1
     environment:
       - CONSUL_ADDR=consul-1
     networks:
-      - lab-net
+      - cluster-net-1
     depends_on:
       - consul-1
+    
+  mock-svc-1-2:
+    build: ./mock-svc
+    container_name: mock-svc-1-2
+    environment:
+      - CONSUL_ADDR=consul-1
+    networks:
+      - cluster-net-1
+    depends_on:
+      - consul-1
+  
+  mock-svc-2-1:
+    build: ./mock-svc
+    container_name: mock-svc-2-1
+    environment:
+      - CONSUL_ADDR=consul-2
+    networks:
+      - cluster-net-2
+    depends_on:
+      - consul-2
+  
+  mock-svc-2-2:
+    build: ./mock-svc
+    container_name: mock-svc-2-2
+    environment:
+      - CONSUL_ADDR=consul-2
+    networks:
+      - cluster-net-2
+    depends_on:
+      - consul-2
 
 networks:
-  lab-net:
+  edge-net:
+    driver: bridge
+
+  cluster-net-1:
+    driver: bridge
+  
+  cluster-net-2:
     driver: bridge
