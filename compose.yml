@@ -12,6 +12,7 @@ services:
       - edge-net
     depends_on:
       - api-gateway-1
+      - api-gateway-2
 
   # 1. API GATEWAY (one per cluster; duplicate for cluster B later)
   api-gateway-1:
@@ -22,7 +23,10 @@ services:
       - --providers.consulcatalog.endpoint.address=consul-1:8500
       - --providers.consulcatalog.endpoint.scheme=http
       - --providers.consulcatalog.exposedByDefault=false
+      - --providers.file.directory=/etc/traefik/dynamic
       - --entrypoints.web.address=:80
+    volumes:
+      - ./traefik:/etc/traefik/dynamic:ro
     ports:
       - "8081:8080"                             # Traefik dashboard
     networks:
@@ -39,7 +43,10 @@ services:
       - --providers.consulcatalog.endpoint.address=consul-2:8500
       - --providers.consulcatalog.endpoint.scheme=http
       - --providers.consulcatalog.exposedByDefault=false
+      - --providers.file.directory=/etc/traefik/dynamic
       - --entrypoints.web.address=:80
+    volumes:
+      - ./traefik:/etc/traefik/dynamic:ro
     ports:
       - "8082:8080"                             # Traefik dashboard
     networks:

@@ -42,8 +42,6 @@ def register() -> bool:
         "Port": SERVICE_PORT,
         "Tags": [
             "traefik.enable=true",
-            "traefik.http.routers.mock.rule=PathPrefix(`/`)",
-            "traefik.http.routers.mock.entrypoints=web",
         ],
         "Check": {
             "HTTP": f"http://{container_ip()}:{SERVICE_PORT}/health",
@@ -92,7 +90,11 @@ def health():
 
 @app.route("/")
 def hello_world():
-    return f"<p>Hello There! This is mock service instance {instance_id}.</p>"
+    return f"<p>Hello There! Instance: {instance_id}.</p>"
+
+@app.route("/doOperation")
+def doOperation():
+    return f"<p> doOperation called! Instance: {instance_id}.</p>"
 
 
 if __name__ == "__main__":

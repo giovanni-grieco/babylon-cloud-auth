@@ -27,7 +27,7 @@ Exactly 2 mock services (mock-svc) exist for each cluster. They register on Cons
 On top of the 2 clusters, we have exactly 1 NGINX "edge" load balancer.
 
 ## Endpoints
-- mock-svc http://localhost
+- mock-svc http://localhost & http://localhost/doOperation
 - Traefik API-Gateway Cluster 1 http://localhost:8081
 - Traefik API-Gateway Cluster 2 http://localhost:8082
 - Consul Service Registry Cluster 1 http://localhost:8501

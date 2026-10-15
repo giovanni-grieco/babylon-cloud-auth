@@ -1,0 +1,6 @@
+http:
+  routers:
+    mock-router:
+      entryPoints: [web]
+      rule: "PathPrefix(`/`) || PathPrefix(`/doOperation`)"
+      service: mock@consulcatalog
