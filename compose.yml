@@ -149,6 +149,8 @@ services:
         - ./auth-kv-1:/data
     environment:
         - REDIS_ARGS=
+    ports:
+      - "6371:6379"
     networks:
       cluster-net-1:
         aliases:
@@ -158,9 +160,11 @@ services:
     image: redis:latest
     container_name: auth-kv-2
     volumes:
-        - ./auth-kv-2:/data
+      - ./auth-kv-2:/data
     environment:
-        - REDIS_ARGS=
+      - REDIS_ARGS=
+    ports:
+      - "6372:6379"
     networks:
       cluster-net-2:
         aliases:

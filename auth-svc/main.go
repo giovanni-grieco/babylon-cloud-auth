@@ -11,7 +11,10 @@ package main
 
 import (
 	"bytes"
+	"context"
+	"crypto/rand"
 	"embed"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -24,6 +27,8 @@ import (
 	"os/signal"
 	"syscall"
 	"time"
+
+	"github.com/redis/go-redis/v9"
 )
 
 const (
@@ -175,7 +180,25 @@ func InitServiceRegisterLoops() {
 	}()
 }
 
+func GenerateRandomStateToken() string {
+	b := make([]byte, 32)
+	if _, err := rand.Read(b); err != nil {
+		panic(err)
+	}
+	return base64.RawURLEncoding.EncodeToString(b)
+}
+
 func main() {
+
+	ctx := context.Background()
+
+	rdb := redis.NewClient(&redis.Options{
+		Addr:     "auth-kv:6379",
+		Password: "",
+		DB:       0,
+		Protocol: 2,
+	})
+
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("GET /health", func(w http.ResponseWriter, r *http.Request) {
@@ -219,10 +242,13 @@ func main() {
 		}
 		http.SetCookie(w, &cookie)
 
-		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		if err := postLoginTmpl.Execute(w, nil); err != nil {
-			log.Printf("render post-login: %v", err)
+		val, err := rdb.Get(ctx, state).Result()
+		if err != nil {
+			http.Error(w, "server error", http.StatusInternalServerError)
+			return
 		}
+
+		http.Redirect(w, r, fmt.Sprintf("http://%s%s", domain, val), http.StatusSeeOther)
 	})
 
 	// Stub: always authenticates. Replace with real token validation later.
@@ -232,8 +258,18 @@ func main() {
 		if err != nil {
 			switch {
 			case errors.Is(err, http.ErrNoCookie):
-				//http.Error(w, "cookie not found", http.StatusBadRequest)
-				http.Redirect(w, r, fmt.Sprintf("http://%s/login", domain), http.StatusMovedPermanently)
+				originalUri := r.Header.Get("X-Forwarded-Uri")
+				if originalUri == "" {
+					originalUri = r.URL.RequestURI()
+				}
+				state := GenerateRandomStateToken()
+
+				err = rdb.Set(ctx, state, originalUri, 5*time.Minute).Err()
+				if err != nil {
+					log.Println(err)
+					http.Error(w, "server error", http.StatusInternalServerError)
+				}
+				http.Redirect(w, r, fmt.Sprintf("http://%s/login?state=%s", domain, state), http.StatusMovedPermanently)
 			default:
 				log.Println(err)
 				http.Error(w, "server error", http.StatusInternalServerError)
