@@ -11,12 +11,15 @@ package main
 
 import (
 	"bytes"
+	"embed"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"html/template"
 	"log"
 	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"os/signal"
 	"syscall"
@@ -27,6 +30,9 @@ const (
 	domain      = "localhost"
 	serviceName = "auth"
 	servicePort = 8080
+
+	username = "admin"
+	password = "admin"
 )
 
 var (
@@ -35,6 +41,18 @@ var (
 	instanceID = hostname()
 	httpClient = &http.Client{Timeout: 5 * time.Second}
 )
+
+//go:embed templates/*
+var templateFS embed.FS
+
+var loginTmpl = template.Must(template.ParseFS(templateFS, "templates/login.html"))
+
+var postLoginTmpl = template.Must(template.ParseFS(templateFS, "templates/post-login.html"))
+
+type loginPage struct {
+	Error string
+	State string
+}
 
 func envOr(key, fallback string) string {
 	if v := os.Getenv(key); v != "" {
@@ -157,9 +175,44 @@ func main() {
 	})
 
 	mux.HandleFunc("GET /login", func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
-		fmt.Fprint(w, "ok")
-		log.Println("/login called")
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		data := loginPage{
+			State: r.URL.Query().Get("state"),
+			Error: r.URL.Query().Get("error"),
+		}
+		if err := loginTmpl.Execute(w, data); err != nil {
+			log.Printf("render login: %v", err)
+		}
+	})
+
+	mux.HandleFunc("POST /login", func(w http.ResponseWriter, r *http.Request) {
+		if err := r.ParseForm(); err != nil {
+			log.Printf("parse form: %v", err)
+			http.Error(w, "bad request", http.StatusBadRequest)
+			return
+		}
+
+		formUser := r.FormValue("username")
+		formPass := r.FormValue("password")
+		state := r.FormValue("state")
+
+		if formUser != username || formPass != password {
+			target := fmt.Sprintf("/login?state=%s&error=%s",
+				url.QueryEscape(state), url.QueryEscape("invalid username or password"))
+			http.Redirect(w, r, target, http.StatusSeeOther)
+			return
+		}
+
+		cookie := http.Cookie{
+			Name:  "auth",
+			Value: "1234",
+		}
+		http.SetCookie(w, &cookie)
+
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		if err := postLoginTmpl.Execute(w, nil); err != nil {
+			log.Printf("render post-login: %v", err)
+		}
 	})
 
 	// Stub: always authenticates. Replace with real token validation later.
