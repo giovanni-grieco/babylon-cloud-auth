@@ -127,6 +127,7 @@ services:
           - auth-svc
     depends_on:
       - consul-1
+      - auth-kv-1
   
   auth-svc-2:
     build: ./auth-svc
@@ -139,6 +140,32 @@ services:
           - auth-svc
     depends_on:
       - consul-2
+      - auth-kv-2
+  
+  auth-kv-1:
+    image: redis:latest
+    container_name: auth-kv-1
+    volumes:
+        - ./auth-kv-1:/data
+    environment:
+        - REDIS_ARGS=
+    networks:
+      cluster-net-1:
+        aliases:
+          - auth-kv
+  
+  auth-kv-2:
+    image: redis:latest
+    container_name: auth-kv-2
+    volumes:
+        - ./auth-kv-2:/data
+    environment:
+        - REDIS_ARGS=
+    networks:
+      cluster-net-2:
+        aliases:
+          - auth-kv
+
 
 networks:
   edge-net:
