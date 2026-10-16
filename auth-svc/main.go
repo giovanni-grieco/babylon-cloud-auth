@@ -102,7 +102,7 @@ type serviceRegistration struct {
 	Check   healthCheck `json:"Check"`
 }
 
-func register() bool {
+func RegisterService() bool {
 	ip := containerIP()
 	payload := serviceRegistration{
 		ID:      instanceID,
@@ -144,7 +144,7 @@ func register() bool {
 	return true
 }
 
-func deregister() {
+func DeRegisterService() {
 	req, err := http.NewRequest(http.MethodPut, agentURL()+"/service/deregister/"+instanceID, nil)
 	if err != nil {
 		return
@@ -158,14 +158,24 @@ func deregister() {
 	log.Printf("deregistered %s from Consul", instanceID)
 }
 
-func registerLoop() {
-	for !register() {
+func RegisterLoop() {
+	for !RegisterService() {
 		time.Sleep(5 * time.Second)
 	}
 }
 
+func InitServiceRegisterLoops() {
+	go RegisterLoop()
+	signals := make(chan os.Signal, 1)
+	signal.Notify(signals, syscall.SIGTERM, syscall.SIGINT)
+	go func() {
+		<-signals
+		DeRegisterService()
+		os.Exit(0)
+	}()
+}
+
 func main() {
-	port := 8080
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("GET /health", func(w http.ResponseWriter, r *http.Request) {
@@ -233,16 +243,8 @@ func main() {
 		}
 	})
 
-	go registerLoop()
+	InitServiceRegisterLoops()
 
-	signals := make(chan os.Signal, 1)
-	signal.Notify(signals, syscall.SIGTERM, syscall.SIGINT)
-	go func() {
-		<-signals
-		deregister()
-		os.Exit(0)
-	}()
-
-	log.Printf("Auth Service running on :%d", port)
-	log.Fatal(http.ListenAndServe(fmt.Sprintf(":%d", port), mux))
+	log.Printf("Auth Service running on :%d", servicePort)
+	log.Fatal(http.ListenAndServe(fmt.Sprintf(":%d", servicePort), mux))
 }
