@@ -1,71 +1,29 @@
+/*
+Piccola frontend con user-password form e login button
+Quando il login è fatto, viene generato un access e refresh token che vengono codificati firmati dalla chiave privata del auth-svc
+Viene salvata la sessione (il refresh token) nel KV-Store e viene annunciata la creazione della sessione sul message broker.
+
+Quando un servizio viene colpito (oppure un gateway iniziale) e non trova token, allora bisogna generare un token randomico, associare quell'utente a quel token, e re-indirizzare l'utente verso il login.
+Eseguito il login, avviene un-reindirizzamento al gateway originale, che a questo punto controllerà il token randomico, vedrà a che percorso originalmente voleva puntare
+*/
+
 package main
 
 import (
-	"context"
 	"fmt"
 	"log"
 	"net/http"
-
-	"github.com/go-oauth2/oauth2/v4/errors"
-	"github.com/go-oauth2/oauth2/v4/manage"
-	"github.com/go-oauth2/oauth2/v4/models"
-	"github.com/go-oauth2/oauth2/v4/server"
-	"github.com/go-oauth2/oauth2/v4/store"
 )
 
 func main() {
-	manager := manage.NewDefaultManager()
-	// token memory store
-	manager.MustTokenStorage(store.NewMemoryTokenStore())
 
-	// client memory store
-	clientStore := store.NewClientStore()
-	err := clientStore.Set("000000", &models.Client{
-		ID:     "000000",
-		Secret: "999999",
-		Domain: "http://google.com",
-	})
-	if err != nil {
-		log.Println(err)
-		return
-	}
-	manager.MapClientStorage(clientStore)
+	port := 8080
+	mux := http.NewServeMux()
 
-	srv := server.NewDefaultServer(manager)
-	srv.SetAllowGetAccessRequest(true)
-	srv.SetClientInfoHandler(server.ClientFormHandler)
-
-	srv.UserAuthorizationHandler = func(w http.ResponseWriter, r *http.Request) (userID string, err error) {
-		return "000000", nil
-	}
-
-	srv.SetInternalErrorHandler(func(ctx context.Context, err error) (re *errors.Response) {
-		if err != nil {
-			fmt.Println(err)
-		}
-		return
+	mux.HandleFunc("GET /login", func(w http.ResponseWriter, r *http.Request) {
+		log.Println("/login called")
 	})
 
-	srv.SetResponseErrorHandler(func(ctx context.Context, re *errors.Response) {
-		if err != nil {
-			fmt.Println(err)
-		}
-	})
-
-	/*http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		fmt.Fprintf(w, "Hello, World!")
-	})*/
-
-	http.HandleFunc("/authorize", func(w http.ResponseWriter, r *http.Request) {
-		err := srv.HandleAuthorizeRequest(w, r)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
-		}
-	})
-
-	http.HandleFunc("/token", func(w http.ResponseWriter, r *http.Request) {
-		srv.HandleTokenRequest(w, r)
-	})
-
-	log.Fatal(http.ListenAndServe(":9096", nil))
+	log.Printf("Auth Service running on :%d", port)
+	log.Fatal(http.ListenAndServe(fmt.Sprintf(":%d", port), mux))
 }
