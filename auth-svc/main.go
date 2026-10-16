@@ -50,9 +50,7 @@ var (
 //go:embed templates/*
 var templateFS embed.FS
 
-var loginTmpl = template.Must(template.ParseFS(templateFS, "templates/login.html"))
-
-var postLoginTmpl = template.Must(template.ParseFS(templateFS, "templates/post-login.html"))
+var templates = template.Must(template.ParseFS(templateFS, "templates/*.html"))
 
 type loginPage struct {
 	Error string
@@ -213,14 +211,15 @@ func main() {
 			State: r.URL.Query().Get("state"),
 			Error: r.URL.Query().Get("error"),
 		}
-		if err := loginTmpl.Execute(w, data); err != nil {
+		if err := templates.ExecuteTemplate(w, "login.html", data); err != nil {
 			log.Printf("render login: %v", err)
+			http.Error(w, "server error", http.StatusInternalServerError)
 		}
 	})
 
 	mux.HandleFunc("POST /login", func(w http.ResponseWriter, r *http.Request) {
 		if err := r.ParseForm(); err != nil {
-			log.Printf("parse form: %v", err)
+			log.Printf("parse form: %v\n", err)
 			http.Error(w, "bad request", http.StatusBadRequest)
 			return
 		}
@@ -244,6 +243,7 @@ func main() {
 
 		val, err := rdb.Get(ctx, state).Result()
 		if err != nil {
+			log.Printf("redis error: %v\n", err)
 			http.Error(w, "server error", http.StatusInternalServerError)
 			return
 		}
@@ -255,7 +255,7 @@ func main() {
 	// Method-agnostic on purpose: forwardAuth preserves the original request method.
 	mux.HandleFunc("GET /verify", func(w http.ResponseWriter, r *http.Request) {
 		cookie, err := r.Cookie("auth")
-		if err != nil {
+		if err != nil || cookie.Value != "1234" {
 			switch {
 			case errors.Is(err, http.ErrNoCookie):
 				originalUri := r.Header.Get("X-Forwarded-Uri")
@@ -281,6 +281,6 @@ func main() {
 
 	InitServiceRegisterLoops()
 
-	log.Printf("Auth Service running on :%d", servicePort)
+	log.Printf("Auth Service running on :%d\n", servicePort)
 	log.Fatal(http.ListenAndServe(fmt.Sprintf(":%d", servicePort), mux))
 }
