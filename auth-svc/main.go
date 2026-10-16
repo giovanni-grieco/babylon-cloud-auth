@@ -10,19 +10,173 @@ Eseguito il login, avviene un-reindirizzamento al gateway originale, che a quest
 package main
 
 import (
+	"bytes"
+	"encoding/json"
 	"fmt"
 	"log"
+	"net"
 	"net/http"
+	"os"
+	"os/signal"
+	"syscall"
+	"time"
 )
 
-func main() {
+const (
+	serviceName = "auth"
+	servicePort = 8080
+)
 
+var (
+	consulAddr = envOr("CONSUL_ADDR", "consul")
+	consulPort = envOr("CONSUL_PORT", "8500")
+	instanceID = hostname()
+	httpClient = &http.Client{Timeout: 5 * time.Second}
+)
+
+func envOr(key, fallback string) string {
+	if v := os.Getenv(key); v != "" {
+		return v
+	}
+	return fallback
+}
+
+func hostname() string {
+	name, err := os.Hostname()
+	if err != nil {
+		return fmt.Sprintf("auth-%d", time.Now().UnixNano())
+	}
+	return name
+}
+
+// containerIP returns this container's IP on the docker network.
+func containerIP() string {
+	conn, err := net.Dial("udp", "8.8.8.8:80")
+	if err != nil {
+		return "127.0.0.1"
+	}
+	defer conn.Close()
+	if addr, ok := conn.LocalAddr().(*net.UDPAddr); ok {
+		return addr.IP.String()
+	}
+	return "127.0.0.1"
+}
+
+func agentURL() string {
+	return fmt.Sprintf("http://%s:%s/v1/agent", consulAddr, consulPort)
+}
+
+type healthCheck struct {
+	HTTP                           string `json:"HTTP"`
+	Interval                       string `json:"Interval"`
+	Timeout                        string `json:"Timeout"`
+	DeregisterCriticalServiceAfter string `json:"DeregisterCriticalServiceAfter"`
+}
+
+type serviceRegistration struct {
+	ID      string      `json:"ID"`
+	Name    string      `json:"Name"`
+	Address string      `json:"Address"`
+	Port    int         `json:"Port"`
+	Tags    []string    `json:"Tags"`
+	Check   healthCheck `json:"Check"`
+}
+
+func register() bool {
+	ip := containerIP()
+	payload := serviceRegistration{
+		ID:      instanceID,
+		Name:    serviceName,
+		Address: ip,
+		Port:    servicePort,
+		Tags:    []string{"traefik.enable=true"},
+		Check: healthCheck{
+			HTTP:                           fmt.Sprintf("http://%s:%d/health", ip, servicePort),
+			Interval:                       "10s",
+			Timeout:                        "2s",
+			DeregisterCriticalServiceAfter: "30s",
+		},
+	}
+
+	body, err := json.Marshal(payload)
+	if err != nil {
+		return false
+	}
+
+	req, err := http.NewRequest(http.MethodPut, agentURL()+"/service/register", bytes.NewReader(body))
+	if err != nil {
+		return false
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := httpClient.Do(req)
+	if err != nil {
+		return false
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		log.Printf("register: unexpected status %d", resp.StatusCode)
+		return false
+	}
+
+	log.Printf("registered with Consul as %s (%s)", instanceID, payload.Address)
+	return true
+}
+
+func deregister() {
+	req, err := http.NewRequest(http.MethodPut, agentURL()+"/service/deregister/"+instanceID, nil)
+	if err != nil {
+		return
+	}
+	resp, err := httpClient.Do(req)
+	if err != nil {
+		log.Printf("deregistration failed: %v", err)
+		return
+	}
+	defer resp.Body.Close()
+	log.Printf("deregistered %s from Consul", instanceID)
+}
+
+func registerLoop() {
+	for !register() {
+		time.Sleep(5 * time.Second)
+	}
+}
+
+func main() {
 	port := 8080
 	mux := http.NewServeMux()
 
+	mux.HandleFunc("GET /health", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		fmt.Fprint(w, "ok")
+		log.Println("/health check ok")
+	})
+
 	mux.HandleFunc("GET /login", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		fmt.Fprint(w, "ok")
 		log.Println("/login called")
 	})
+
+	// Stub: always authenticates. Replace with real token validation later.
+	// Method-agnostic on purpose: forwardAuth preserves the original request method.
+	mux.HandleFunc("/verify", func(w http.ResponseWriter, r *http.Request) {
+		//w.Header().Set("X-User-ID", "anonymous")
+		w.WriteHeader(http.StatusOK)
+		log.Println("/verify called")
+	})
+
+	go registerLoop()
+
+	signals := make(chan os.Signal, 1)
+	signal.Notify(signals, syscall.SIGTERM, syscall.SIGINT)
+	go func() {
+		<-signals
+		deregister()
+		os.Exit(0)
+	}()
 
 	log.Printf("Auth Service running on :%d", port)
 	log.Fatal(http.ListenAndServe(fmt.Sprintf(":%d", port), mux))
