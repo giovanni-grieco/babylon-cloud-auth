@@ -12,6 +12,7 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"net"
@@ -23,6 +24,7 @@ import (
 )
 
 const (
+	domain      = "localhost"
 	serviceName = "auth"
 	servicePort = 8080
 )
@@ -162,10 +164,20 @@ func main() {
 
 	// Stub: always authenticates. Replace with real token validation later.
 	// Method-agnostic on purpose: forwardAuth preserves the original request method.
-	mux.HandleFunc("/verify", func(w http.ResponseWriter, r *http.Request) {
-		//w.Header().Set("X-User-ID", "anonymous")
-		w.WriteHeader(http.StatusOK)
-		log.Println("/verify called")
+	mux.HandleFunc("GET /verify", func(w http.ResponseWriter, r *http.Request) {
+		cookie, err := r.Cookie("auth")
+		if err != nil {
+			switch {
+			case errors.Is(err, http.ErrNoCookie):
+				//http.Error(w, "cookie not found", http.StatusBadRequest)
+				http.Redirect(w, r, fmt.Sprintf("http://%s/login", domain), http.StatusMovedPermanently)
+			default:
+				log.Println(err)
+				http.Error(w, "server error", http.StatusInternalServerError)
+			}
+		} else {
+			fmt.Fprintf(w, "cookie: %s", cookie.Value)
+		}
 	})
 
 	go registerLoop()
