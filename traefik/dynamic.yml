@@ -1,10 +1,9 @@
 http:
-
   middlewares:
     auth-middleware:
       forwardAuth:
         address: "http://auth-svc:8080/verify" # Points to your Go auth service container/address
-        trustForwardHeader: true             # Passes X-Forwarded-* headers (like URI and Host) to your auth-svc
+        trustForwardHeader: true               # Passes X-Forwarded-* headers (like URI and Host) to your auth-svc
         authResponseHeaders:
           - "X-User-ID"             # Injects this header from your auth-svc's 200 OK response down to the backend
 

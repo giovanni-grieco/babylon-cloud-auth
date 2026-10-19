@@ -127,8 +127,6 @@ services:
   auth-svc-1:
     build: ./auth-svc
     container_name: auth-svc-1
-    volumes:
-      - ./auth-svc/templates:/templates:ro
     environment:
       - CONSUL_ADDR=consul-1
     networks:
@@ -142,8 +140,6 @@ services:
   auth-svc-2:
     build: ./auth-svc
     container_name: auth-svc-2
-    volumes:
-      - ./auth-svc/templates:/templates:ro
     environment:
       - CONSUL_ADDR=consul-2
     networks:
