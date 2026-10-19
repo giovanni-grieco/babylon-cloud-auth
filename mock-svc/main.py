@@ -6,9 +6,10 @@ import threading
 import time
 
 import requests
-from flask import Flask
+from flask import Flask, render_template
 
 app = Flask(__name__)
+app.config["TEMPLATES_AUTO_RELOAD"] = True
 
 SERVICE_NAME = "mock"
 SERVICE_PORT = 8888
@@ -90,11 +91,11 @@ def health():
 
 @app.route("/")
 def hello_world():
-    return f"<p>Hello There! Instance: {instance_id}.</p>"
+    return render_template("index.html", instance_id=instance_id)
 
 @app.route("/doOperation")
 def doOperation():
-    return f"<p> doOperation called! Instance: {instance_id}.</p>"
+    return render_template("doOperation.html", instance_id=instance_id)
 
 
 if __name__ == "__main__":

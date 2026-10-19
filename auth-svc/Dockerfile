@@ -14,6 +14,4 @@ FROM alpine:latest
 
 COPY --from=builder /auth-svc /auth-svc
 
-COPY ./templates /templates
-
 CMD ["/auth-svc"]

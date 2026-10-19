@@ -9,7 +9,12 @@ http:
           - "X-User-ID"             # Injects this header from your auth-svc's 200 OK response down to the backend
 
   routers:
-    mock-router:
+    mock-router-public:
+      entryPoints: [web]
+      rule: "Path(`/`)"
+      service: mock@consulcatalog
+
+    mock-router-protected:
       entryPoints: [web]
       rule: "PathPrefix(`/doOperation`)"
       middlewares: [auth-middleware]

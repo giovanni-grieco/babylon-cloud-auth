@@ -244,8 +244,8 @@ func main() {
 		val, err := rdb.Get(ctx, state).Result()
 		if err != nil {
 			log.Printf("redis error: %v\n", err)
-			http.Error(w, "server error", http.StatusInternalServerError)
-			return
+			log.Printf("Redis key not found")
+			val = ""
 		}
 
 		http.Redirect(w, r, fmt.Sprintf("http://%s%s", domain, val), http.StatusSeeOther)
