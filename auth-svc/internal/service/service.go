@@ -114,15 +114,18 @@ func (s *Service) handleLoginPost(w http.ResponseWriter, r *http.Request) {
 // Method-agnostic on purpose: forwardAuth preserves the original request method.
 func (s *Service) handleVerify(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-
 	cookie, err := r.Cookie("auth")
+	
 	if err != nil || cookie.Value != "1234" {
 		switch {
 		case errors.Is(err, http.ErrNoCookie):
 			originalUri := r.Header.Get("X-Forwarded-Uri")
+			log.Printf("X-Forwarded-Uri: %s\n", originalUri)
 			if originalUri == "" {
 				originalUri = r.URL.RequestURI()
+				log.Printf("RequestURI: %s\n", originalUri)
 			}
+
 			state := generateRandomStateToken()
 
 			if err := s.rdb.Set(ctx, state, originalUri, 5*time.Minute).Err(); err != nil {
