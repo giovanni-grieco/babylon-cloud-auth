@@ -17,6 +17,7 @@ import (
 
 	"auth-svc/internal/registry"
 	"auth-svc/internal/service"
+	_ "time/tzdata" // Embeds the IANA time zone database
 )
 
 const (
