@@ -1,0 +1,164 @@
+package httpin
+
+import (
+	"auth-svc/internal/service"
+	"crypto/rand"
+	"embed"
+	"encoding/base64"
+	"errors"
+	"fmt"
+	"html/template"
+	"log"
+	"net/http"
+	"net/url"
+	"time"
+)
+
+//go:embed templates/*
+var templateFS embed.FS
+
+type HttpInboundPortConfig struct {
+	Domain string
+}
+
+// Service holds the auth service's configuration and dependencies.
+type HttpInboundPort struct {
+	cfg   HttpInboundPortConfig
+	tpl   *template.Template
+	svc   *service.AuthService
+	store StateStore
+}
+
+func New(cfg HttpInboundPortConfig, svc *service.AuthService, store StateStore) *HttpInboundPort {
+	return &HttpInboundPort{
+		cfg:   cfg,
+		tpl:   template.Must(template.ParseFS(templateFS, "templates/*.html")),
+		svc:   svc,
+		store: store,
+	}
+}
+
+// Routes builds the HTTP handlers served by the auth service.
+func (s *HttpInboundPort) Routes() http.Handler {
+	mux := http.NewServeMux()
+
+	mux.HandleFunc("GET /health", s.handleHealth)
+	mux.HandleFunc("GET /login", s.handleLogin)
+	mux.HandleFunc("POST /login", s.handleLoginPost)
+	mux.HandleFunc("GET /register", s.handleRegister)
+	mux.HandleFunc("POST /register", s.handleRegisterPost)
+	mux.HandleFunc("GET /verify", s.handleVerify)
+
+	return mux
+}
+
+func (s *HttpInboundPort) handleHealth(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusOK)
+	fmt.Fprint(w, "ok")
+	log.Println("/health check ok")
+}
+
+type loginPage struct {
+	Error string
+	State string
+}
+
+func (s *HttpInboundPort) handleLogin(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	data := loginPage{
+		State: r.URL.Query().Get("state"),
+		Error: r.URL.Query().Get("error"),
+	}
+	if err := s.tpl.ExecuteTemplate(w, "login.html", data); err != nil {
+		log.Printf("render login: %v", err)
+		http.Error(w, "server error", http.StatusInternalServerError)
+	}
+}
+
+func (s *HttpInboundPort) handleLoginPost(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	if err := r.ParseForm(); err != nil {
+		log.Printf("parse form: %v\n", err)
+		http.Error(w, "bad request", http.StatusBadRequest)
+		return
+	}
+
+	formUser := r.FormValue("username")
+	formPass := r.FormValue("password")
+	state := r.FormValue("state")
+
+	if err := s.svc.Login(ctx, formUser, formPass); err != nil {
+		target := fmt.Sprintf("/login?state=%s&error=%s",
+			url.QueryEscape(state), url.QueryEscape("invalid username or password"))
+		http.Redirect(w, r, target, http.StatusSeeOther)
+		return
+	}
+
+	cookie := http.Cookie{
+		Name:  "auth",
+		Value: "1234",
+	}
+	http.SetCookie(w, &cookie)
+
+	val, err := s.store.GetState(ctx, state)
+
+	if err != nil {
+		log.Printf("redis error: %v\n", err)
+		log.Printf("Redis key not found")
+		val = ""
+	}
+
+	http.Redirect(w, r, fmt.Sprintf("http://%s%s", s.cfg.Domain, val), http.StatusSeeOther)
+}
+
+func (s *HttpInboundPort) handleRegister(w http.ResponseWriter, r *http.Request) {
+	/*ctx := r.Context()
+	 */
+	return
+}
+
+func (s *HttpInboundPort) handleRegisterPost(w http.ResponseWriter, r *http.Request) {
+	return
+}
+
+// Stub: always authenticates. Replace with real token validation later.
+// Method-agnostic on purpose: forwardAuth preserves the original request method.
+func (s *HttpInboundPort) handleVerify(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	cookie, err := r.Cookie("auth")
+
+	if err != nil || cookie.Value != "1234" {
+		switch {
+		case errors.Is(err, http.ErrNoCookie):
+			originalUri := r.Header.Get("X-Forwarded-Uri")
+			log.Printf("X-Forwarded-Uri: %s\n", originalUri)
+			if originalUri == "" {
+				originalUri = r.URL.RequestURI()
+				log.Printf("RequestURI: %s\n", originalUri)
+			}
+
+			state := generateRandomStateToken()
+
+			if err := s.store.SetState(ctx, state, originalUri, 5*time.Minute); err != nil {
+				log.Println(err)
+				http.Error(w, "server error", http.StatusInternalServerError)
+				return
+			}
+			http.Redirect(w, r, fmt.Sprintf("http://%s/login?state=%s", s.cfg.Domain, state), http.StatusMovedPermanently)
+		default:
+			log.Println(err)
+			http.Error(w, "server error", http.StatusInternalServerError)
+		}
+	} else {
+		fmt.Fprintf(w, "cookie: %s", cookie.Value)
+	}
+}
+
+func generateRandomStateToken() string {
+	b := make([]byte, 32)
+	if _, err := rand.Read(b); err != nil {
+		panic(err)
+	}
+	return base64.RawURLEncoding.EncodeToString(b)
+}

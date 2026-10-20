@@ -1,22 +1,18 @@
 package main
 
 import (
+	"auth-svc/internal/httpin"
+	"auth-svc/internal/registry"
+	"auth-svc/internal/service"
+	"auth-svc/internal/store"
 	"context"
 	"errors"
-	"fmt"
 	"log"
 	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
-
-	"github.com/redis/go-redis/v9"
-	"gorm.io/driver/postgres"
-	"gorm.io/gorm"
-
-	"auth-svc/internal/registry"
-	"auth-svc/internal/service"
 	_ "time/tzdata" // Embeds the IANA time zone database
 )
 
@@ -28,32 +24,38 @@ const (
 func main() {
 	ctx := context.Background()
 
-	rdb := redis.NewClient(&redis.Options{
-		Addr:     "auth-kv:6379",
-		Password: "",
-		DB:       0,
-		Protocol: 2,
+	redisStore := store.NewRedisStore(store.RedisStoreConfig{
+		Address:    "auth-kv:6379",
+		Password:   "",
+		DB:         0,
+		SessionTTL: 24 * time.Hour, // Set session TTL to 24 hours
 	})
 
-	dsn := "host=auth-db user=postgres password=postgres dbname=auth-db port=5432 sslmode=disable TimeZone=Europe/Rome"
-	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
+	postgresStore, err := store.NewPostgresStore(store.PostgresStoreConfig{
+		Host:     "auth-db",
+		Port:     5432,
+		User:     "postgres",
+		Password: "postgres",
+		DBName:   "auth-db",
+		Timezone: "Europe/Rome",
+	})
 
 	if err != nil {
-		log.Fatalf("failed to connect to database: %v", err)
 		panic(err)
 	}
 
-	srvConfig := service.Config{
-		Domain:   "localhost",
-		Username: "admin",
-		Password: "admin",
-	}
+	authSvc := service.NewAuthService(postgresStore, redisStore)
 
-	svc := service.New(srvConfig, rdb, db)
+	httpInboundPort := httpin.New(
+		httpin.HttpInboundPortConfig{
+			Domain: envOr("AUTH_DOMAIN", "localhost"),
+		},
+		authSvc,
+		redisStore)
 
-	srv := &http.Server{
-		Addr:    fmt.Sprintf(":%d", servicePort),
-		Handler: svc.Routes(),
+	httpServer := &http.Server{
+		Addr:    ":8080",
+		Handler: httpInboundPort.Routes(),
 	}
 
 	reg := registry.New(
@@ -62,6 +64,7 @@ func main() {
 		serviceName,
 		servicePort,
 	)
+
 	go reg.RegisterLoop()
 
 	shutdownCtx, stop := signal.NotifyContext(ctx, syscall.SIGTERM, syscall.SIGINT)
@@ -73,13 +76,13 @@ func main() {
 
 		timeoutCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
-		if err := srv.Shutdown(timeoutCtx); err != nil {
+		if err := httpServer.Shutdown(timeoutCtx); err != nil {
 			log.Printf("shutdown: %v", err)
 		}
 	}()
 
 	log.Printf("Auth Service running on :%d\n", servicePort)
-	if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+	if err := httpServer.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		log.Fatal(err)
 	}
 }
