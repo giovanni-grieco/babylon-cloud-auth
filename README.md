@@ -45,3 +45,6 @@ So 4 requests in a row would land on mock-svc-1-1 (cluster 1, instance 1), then 
 
 # Authentication
 Requests to the mock service pass through Traefik's `auth-middleware`, which calls the auth service `/verify` endpoint. That endpoint is currently a stub (always returns 200 with `X-User-ID: anonymous`); real token validation (access/refresh JWT, signed by the auth service private key) is still to be implemented.
+
+
+HOME Realm Discovery

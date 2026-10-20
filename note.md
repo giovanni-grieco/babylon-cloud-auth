@@ -33,3 +33,11 @@ Il verifier deve creare lui stesso l'associazione state-token=redirect URI e ann
 # Integrazione Dati
 Questo problema non l'ho capito del tutto e. non l'ho capito bene, ma a quanto pare se si vuole centralizzare, ci sono problemi sui dati. Cioè i dati non possono risiedere fisicamente su altri datacenter che non siano quelli di Wind o Vodafone ad esempio, quindi bisogna creare una tabella per gestire tutti gli utenti in maniera anonima. Banalmente bisogna creare degli identificatori univoci. Un altro problema, è quello di rimandare al datacenter,
 
+
+# Home Realm Discovery
+Per simulare meglio la situazione aziendale, bisognerebbe creare un sistema dove le utenze non sono note a tutti i cluster, ma l'informazion e è frammentata.
+
+Quando un nuovo utente viene creato da un admin aziendale, si sceglie il datacenter su cui cadrà, invece se il consumer si registra per conto suo, probabilmente la logica dovrebbe essere least-used.
+
+Quando si vuole fare il login, bisogna risolvere il datacenter/cluster su cui giacciono davvero le credenziali dell'utente. Ci sono delle difficoltà a livello contrattuale dove non si possono salvare le informazioni degli utenti su un datacenter diverso da quello definito nel contratto. Quindi, La risoluzione deve poter avvenrire senza che il servizio di autenticazione abbia una "Master-Table" dove conosce dove tutti sono. Inoltre, Anche se tale tabella esistesse, bisogna evitare di pagare O(n) ogni volta.
+

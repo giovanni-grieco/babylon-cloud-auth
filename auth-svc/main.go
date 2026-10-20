@@ -12,6 +12,8 @@ import (
 	"time"
 
 	"github.com/redis/go-redis/v9"
+	"gorm.io/driver/postgres"
+	"gorm.io/gorm"
 
 	"auth-svc/internal/registry"
 	"auth-svc/internal/service"
@@ -32,11 +34,21 @@ func main() {
 		Protocol: 2,
 	})
 
-	svc := service.New(service.Config{
+	dsn := "host=auth-db user=postgres password=postgres dbname=auth-db port=5432 sslmode=disable TimeZone=Europe/Rome"
+	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
+
+	if err != nil {
+		log.Fatalf("failed to connect to database: %v", err)
+		panic(err)
+	}
+
+	srvConfig := service.Config{
 		Domain:   "localhost",
 		Username: "admin",
 		Password: "admin",
-	}, rdb)
+	}
+
+	svc := service.New(srvConfig, rdb, db)
 
 	srv := &http.Server{
 		Addr:    fmt.Sprintf(":%d", servicePort),

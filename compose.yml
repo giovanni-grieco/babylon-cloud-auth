@@ -20,7 +20,7 @@ services:
     container_name: api-gateway-1
     command:
       - --api.insecure=true                     # dashboard + API on :8080 (lab only)
-      - --providers.consulcatalog.endpoint.address=consul-1:8500
+      - --providers.consulcatalog.endpoint.address=consul:8500
       - --providers.consulcatalog.endpoint.scheme=http
       - --providers.consulcatalog.exposedByDefault=false
       - --providers.file.directory=/etc/traefik/dynamic
@@ -40,7 +40,7 @@ services:
     container_name: api-gateway-2
     command:
       - --api.insecure=true                     # dashboard + API on :8080 (lab only)
-      - --providers.consulcatalog.endpoint.address=consul-2:8500
+      - --providers.consulcatalog.endpoint.address=consul:8500
       - --providers.consulcatalog.endpoint.scheme=http
       - --providers.consulcatalog.exposedByDefault=false
       - --providers.file.directory=/etc/traefik/dynamic
@@ -63,7 +63,9 @@ services:
     ports:
       - "8501:8500"                             # HTTP API + UI
     networks:
-      - cluster-net-1
+      cluster-net-1:
+        aliases: 
+          - consul
   
   consul-2:
     image: hashicorp/consul:latest
@@ -72,7 +74,9 @@ services:
     ports:
       - "8502:8500"                             # HTTP API + UI
     networks:
-      - cluster-net-2
+      cluster-net-2:
+        aliases:
+          - consul
 
   # 3. MOCK SERVICE (replicas self-register with Consul at runtime)
   mock-svc-1-1:
@@ -134,8 +138,12 @@ services:
         aliases:
           - auth-svc
     depends_on:
-      - consul-1
-      - auth-kv-1
+      consul-1:
+        condition: service_started
+      auth-kv-1:
+        condition: service_healthy
+      auth-db-1:
+        condition: service_healthy
   
   auth-svc-2:
     build: ./auth-svc
@@ -147,8 +155,12 @@ services:
         aliases:
           - auth-svc
     depends_on:
-      - consul-2
-      - auth-kv-2
+      consul-2:
+        condition: service_started
+      auth-kv-2:
+        condition: service_healthy
+      auth-db-2:
+        condition: service_healthy
   
   auth-kv-1:
     image: redis:latest
@@ -159,6 +171,11 @@ services:
         - REDIS_ARGS=
     ports:
       - "6371:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
     networks:
       cluster-net-1:
         aliases:
@@ -173,11 +190,56 @@ services:
       - REDIS_ARGS=
     ports:
       - "6372:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
     networks:
       cluster-net-2:
         aliases:
           - auth-kv
 
+  auth-db-1:
+    image: postgres:latest
+    container_name: auth-db-1
+    ports:
+      - "5431:5432"
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=auth-db
+    volumes:
+      - ./auth-db-1:/var/lib/postgresql/18
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      cluster-net-1:
+        aliases:
+          - auth-db
+  auth-db-2:
+    image: postgres:latest
+    container_name: auth-db-2
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=auth-db
+    volumes:
+      - ./auth-db-2:/var/lib/postgresql/18
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      cluster-net-2:
+        aliases:
+          - auth-db
 
 networks:
   edge-net:

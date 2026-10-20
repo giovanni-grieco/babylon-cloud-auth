@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/redis/go-redis/v9"
+	"gorm.io/gorm"
 )
 
 //go:embed templates/*
@@ -28,13 +29,15 @@ type Config struct {
 type Service struct {
 	cfg Config
 	rdb *redis.Client
+	db  *gorm.DB
 	tpl *template.Template
 }
 
-func New(cfg Config, rdb *redis.Client) *Service {
+func New(cfg Config, rdb *redis.Client, db *gorm.DB) *Service {
 	return &Service{
 		cfg: cfg,
 		rdb: rdb,
+		db:  db,
 		tpl: template.Must(template.ParseFS(templateFS, "templates/*.html")),
 	}
 }
@@ -46,6 +49,8 @@ func (s *Service) Routes() http.Handler {
 	mux.HandleFunc("GET /health", s.handleHealth)
 	mux.HandleFunc("GET /login", s.handleLogin)
 	mux.HandleFunc("POST /login", s.handleLoginPost)
+	mux.HandleFunc("GET /register", s.handleRegister)
+	mux.HandleFunc("POST /register", s.handleRegisterPost)
 	mux.HandleFunc("GET /verify", s.handleVerify)
 
 	return mux
@@ -110,12 +115,22 @@ func (s *Service) handleLoginPost(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, fmt.Sprintf("http://%s%s", s.cfg.Domain, val), http.StatusSeeOther)
 }
 
+func (s *Service) handleRegister(w http.ResponseWriter, r *http.Request) {
+	/*ctx := r.Context()
+	 */
+	return
+}
+
+func (s *Service) handleRegisterPost(w http.ResponseWriter, r *http.Request) {
+	return
+}
+
 // Stub: always authenticates. Replace with real token validation later.
 // Method-agnostic on purpose: forwardAuth preserves the original request method.
 func (s *Service) handleVerify(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	cookie, err := r.Cookie("auth")
-	
+
 	if err != nil || cookie.Value != "1234" {
 		switch {
 		case errors.Is(err, http.ErrNoCookie):
