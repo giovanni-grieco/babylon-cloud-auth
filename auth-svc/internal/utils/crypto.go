@@ -68,17 +68,13 @@ func (a *Argon2idHash) GenerateSalt() ([]byte, error) {
 
 func (a *Argon2idHash) GeneratePasswordHash(password, salt []byte) (HashAndSalt, error) {
 	var err error
-	// If salt is not provided generate a salt of
-	// the configured salt length.
 	if len(salt) == 0 {
 		salt, err = GenerateRandomSecret(a.saltLen)
 	}
 	if err != nil {
 		return HashAndSalt{}, err
 	}
-	// Generate hash
 	hash := argon2.IDKey(password, salt, a.time, a.memory, a.threads, a.keyLen)
-	// Return the generated hash and salt used for storage.
 	return HashAndSalt{
 			Hash: base64.RawStdEncoding.EncodeToString(hash),
 			Salt: base64.RawStdEncoding.EncodeToString(salt)},

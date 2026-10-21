@@ -1,4 +1,18 @@
 services:
+  #NATS Message Broker
+  message-broker:
+    image: nats:alpine
+    container_name: n1
+    command: -c /etc/nats/nats.conf
+    ports:
+      - "4222:4222" # client port
+      - "6222:6222" # cluster port
+      - "8222:8222" # monitoring port
+    volumes:
+      - ./nats/nats.conf:/etc/nats/nats.conf
+      - ./nats/data:/data
+    networks:
+      - message-net
 
   # 0. LOAD BALANCER (public entrypoint)
   load-balancer:
@@ -144,6 +158,8 @@ services:
         condition: service_healthy
       auth-db-1:
         condition: service_healthy
+      message-broker:
+        condition: service_started
   
   auth-svc-2:
     build: ./auth-svc
@@ -161,6 +177,8 @@ services:
         condition: service_healthy
       auth-db-2:
         condition: service_healthy
+      message-broker:
+        condition: service_started
   
   auth-kv-1:
     image: redis:latest
@@ -251,4 +269,7 @@ networks:
     driver: bridge
   
   cluster-net-2:
+    driver: bridge
+  
+  message-net:
     driver: bridge
