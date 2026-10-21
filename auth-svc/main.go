@@ -44,6 +44,12 @@ func main() {
 		panic(err)
 	}
 
+	err = postgresStore.Migrate(ctx)
+	
+	if err != nil {
+		panic(err)
+	}
+
 	authSvc := service.NewAuthService(postgresStore, redisStore)
 
 	httpInboundPort := httpin.New(

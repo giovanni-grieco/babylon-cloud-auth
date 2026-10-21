@@ -20,5 +20,5 @@ http:
     
     auth-service-router:
       entryPoints: [web]
-      rule: "PathPrefix(`/login`)"
+      rule: "PathPrefix(`/login`) || PathPrefix(`/register`)"
       service: "auth@consulcatalog"

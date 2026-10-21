@@ -56,24 +56,35 @@ func (s *PostgresStore) Migrate(ctx context.Context) error {
 	return nil
 }
 
-func (s *PostgresStore) GetUser(ctx context.Context, username string) (*domain.User, error) {
+func (s *PostgresStore) GetUser(ctx context.Context, username string) (domain.User, error) {
 	var rec userRecord
 
 	err := s.db.WithContext(ctx).Where("username = ?", username).First(&rec).Error
 	switch {
 	case errors.Is(err, gorm.ErrRecordNotFound):
-		return nil, ErrUserNotFound
+		return domain.User{}, ErrUserNotFound
 	case err != nil:
-		return nil, fmt.Errorf("get user %q: %w", username, err)
+		return domain.User{}, fmt.Errorf("get user %q: %w", username, err)
 	}
 
 	return rec.toDomain(), nil
 }
 
-func (s *PostgresStore) CreateUser(ctx context.Context, user *domain.User) error {
-	if user == nil {
-		return errors.New("create user: nil user")
+func (s *PostgresStore) GetUserByEmail(ctx context.Context, email string) (domain.User, error) {
+	var rec userRecord
+
+	err := s.db.WithContext(ctx).Where("email = ?", email).First(&rec).Error
+	switch {
+	case errors.Is(err, gorm.ErrRecordNotFound):
+		return domain.User{}, ErrUserNotFound
+	case err != nil:
+		return domain.User{}, fmt.Errorf("get user by email %q: %w", email, err)
 	}
+
+	return rec.toDomain(), nil
+}
+
+func (s *PostgresStore) CreateUser(ctx context.Context, user domain.User) error {
 
 	rec := userRecord{
 		ID:           user.ID,
@@ -89,10 +100,7 @@ func (s *PostgresStore) CreateUser(ctx context.Context, user *domain.User) error
 	return nil
 }
 
-func (s *PostgresStore) UpdateUser(ctx context.Context, user *domain.User) error {
-	if user == nil {
-		return errors.New("update user: nil user")
-	}
+func (s *PostgresStore) UpdateUser(ctx context.Context, user domain.User) error {
 
 	// A map (not a struct) so zero values are still written.
 	result := s.db.WithContext(ctx).
@@ -122,22 +130,4 @@ func (s *PostgresStore) DeleteUser(ctx context.Context, username string) error {
 	}
 
 	return nil
-}
-
-type userRecord struct {
-	ID           uint64 `gorm:"column:id;primaryKey;autoIncrement"`
-	Username     string `gorm:"column:username;uniqueIndex;not null"`
-	Email        string `gorm:"column:email;not null"`
-	PasswordHash string `gorm:"column:password_hash;not null"`
-}
-
-func (userRecord) TableName() string { return "users" }
-
-func (r userRecord) toDomain() *domain.User {
-	return &domain.User{
-		ID:           r.ID,
-		Username:     r.Username,
-		Email:        r.Email,
-		PasswordHash: r.PasswordHash,
-	}
 }

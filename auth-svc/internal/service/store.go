@@ -6,9 +6,10 @@ import (
 )
 
 type UserStore interface {
-	GetUser(ctx context.Context, username string) (*domain.User, error)
-	CreateUser(ctx context.Context, user *domain.User) error
-	UpdateUser(ctx context.Context, user *domain.User) error
+	GetUser(ctx context.Context, username string) (domain.User, error)
+	GetUserByEmail(ctx context.Context, email string) (domain.User, error)
+	CreateUser(ctx context.Context, user domain.User) error
+	UpdateUser(ctx context.Context, user domain.User) error
 	DeleteUser(ctx context.Context, username string) error
 }
 

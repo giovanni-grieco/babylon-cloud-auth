@@ -55,7 +55,6 @@ func (s *HttpInboundPort) Routes() http.Handler {
 func (s *HttpInboundPort) handleHealth(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 	fmt.Fprint(w, "ok")
-	log.Println("/health check ok")
 }
 
 type loginPage struct {
@@ -112,14 +111,47 @@ func (s *HttpInboundPort) handleLoginPost(w http.ResponseWriter, r *http.Request
 	http.Redirect(w, r, fmt.Sprintf("http://%s%s", s.cfg.Domain, val), http.StatusSeeOther)
 }
 
+type registerPage struct {
+	Error string
+}
+
 func (s *HttpInboundPort) handleRegister(w http.ResponseWriter, r *http.Request) {
-	/*ctx := r.Context()
-	 */
-	return
+	if err := r.ParseForm(); err != nil {
+		log.Printf("parse form: %v\n", err)
+		http.Error(w, "bad request", http.StatusBadRequest)
+		return
+	}
+
+	data := registerPage{
+		Error: r.URL.Query().Get("error"),
+	}
+
+	if err := s.tpl.ExecuteTemplate(w, "register.html", data); err != nil {
+		log.Printf("render register: %v", err)
+		http.Error(w, "server error", http.StatusInternalServerError)
+	}
 }
 
 func (s *HttpInboundPort) handleRegisterPost(w http.ResponseWriter, r *http.Request) {
-	return
+	ctx := r.Context()
+	if err := r.ParseForm(); err != nil {
+		log.Printf("parse form: %v\n", err)
+		http.Error(w, "bad request", http.StatusBadRequest)
+		return
+	}
+
+	formEmail := r.FormValue("email")
+	formUser := r.FormValue("username")
+	formPass := r.FormValue("password")
+
+	if err := s.svc.Register(ctx, formUser, formEmail, formPass); err != nil {
+		target := fmt.Sprintf("/register?error=%s", url.QueryEscape(err.Error()))
+		http.Redirect(w, r, target, http.StatusSeeOther)
+		return
+	}
+
+	http.Redirect(w, r, "/login", http.StatusSeeOther)
+
 }
 
 // Stub: always authenticates. Replace with real token validation later.

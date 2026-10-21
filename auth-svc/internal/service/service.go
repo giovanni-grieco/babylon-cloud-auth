@@ -1,6 +1,7 @@
 package service
 
 import (
+	"auth-svc/internal/domain"
 	"context"
 	"fmt"
 )
@@ -22,12 +23,23 @@ func (s *AuthService) Verify(ctx context.Context, cookie string) bool {
 }
 
 func (s *AuthService) Login(ctx context.Context, username, password string) error {
-	if username == "admin" && password == "admin" {
-		return nil
+	user, err := s.UserStore.GetUser(ctx, username)
+	if err != nil {
+		return fmt.Errorf("get user: %w", err)
 	}
-	return fmt.Errorf("invalid username or password")
+
+	if user.PasswordHash != password {
+		return fmt.Errorf("invalid username or password")
+	}
+
+	return nil
 }
 
 func (s *AuthService) Register(ctx context.Context, username, email, password string) error {
-	return fmt.Errorf("registration not implemented")
+	newUser := domain.User{
+		Username:     username,
+		Email:        email,
+		PasswordHash: password,
+	}
+	return s.UserStore.CreateUser(ctx, newUser)
 }
