@@ -1,10 +1,10 @@
 package main
 
 import (
-	"auth-svc/internal/httpin"
+	"auth-svc/internal/inbound/httpin"
+	"auth-svc/internal/outbound/store"
 	"auth-svc/internal/registry"
 	"auth-svc/internal/service"
-	"auth-svc/internal/store"
 	"context"
 	"errors"
 	"log"
@@ -45,7 +45,7 @@ func main() {
 	}
 
 	err = postgresStore.Migrate(ctx)
-	
+
 	if err != nil {
 		panic(err)
 	}

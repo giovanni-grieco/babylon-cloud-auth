@@ -9,7 +9,7 @@ import (
 
 	"github.com/redis/go-redis/v9"
 
-	"auth-svc/internal/httpin"
+	"auth-svc/internal/inbound/httpin"
 	"auth-svc/internal/service"
 )
 
