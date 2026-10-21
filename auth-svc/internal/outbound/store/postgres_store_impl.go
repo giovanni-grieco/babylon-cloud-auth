@@ -91,6 +91,7 @@ func (s *PostgresStore) CreateUser(ctx context.Context, user domain.User) error 
 		Username:     user.Username,
 		Email:        user.Email,
 		PasswordHash: user.PasswordHash,
+		Salt:         user.Salt,
 	}
 	if err := s.db.WithContext(ctx).Create(&rec).Error; err != nil {
 		return fmt.Errorf("create user %q: %w", user.Username, err)
@@ -109,6 +110,7 @@ func (s *PostgresStore) UpdateUser(ctx context.Context, user domain.User) error 
 		Updates(map[string]any{
 			"email":         user.Email,
 			"password_hash": user.PasswordHash,
+			"salt":          user.Salt,
 		})
 	if result.Error != nil {
 		return fmt.Errorf("update user %q: %w", user.Username, result.Error)
