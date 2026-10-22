@@ -2,6 +2,8 @@ package main
 
 import (
 	"auth-svc/internal/inbound/httpin"
+	in_messaging "auth-svc/internal/inbound/messaging"
+	out_messaging "auth-svc/internal/outbound/messaging"
 	"auth-svc/internal/registry"
 	"auth-svc/internal/service"
 	"auth-svc/internal/store"
@@ -14,6 +16,9 @@ import (
 	"syscall"
 	"time"
 	_ "time/tzdata" // Embeds the IANA time zone database
+	"uuid"
+
+	"github.com/nats-io/nats.go"
 )
 
 const (
@@ -22,6 +27,9 @@ const (
 )
 
 func main() {
+
+	serviceUniqueId := uuid.New().String()
+
 	ctx := context.Background()
 
 	redisStore := store.NewRedisStore(store.RedisStoreConfig{
@@ -50,7 +58,17 @@ func main() {
 		panic(err)
 	}
 
-	authSvc := service.NewAuthService(postgresStore, redisStore)
+	natsConn, err := nats.Connect("nats://message-broker:4222")
+	if err != nil {
+		panic(err)
+	}
+	defer natsConn.Close()
+
+	natsOutboundClient := &out_messaging.NatsOutboundMessageClientImpl{
+		Nc: natsConn,
+	}
+
+	authSvc := service.NewAuthService(serviceUniqueId, postgresStore, redisStore, natsOutboundClient)
 
 	httpInboundPort := httpin.New(
 		httpin.HttpInboundPortConfig{
@@ -63,6 +81,13 @@ func main() {
 		Addr:    ":8080",
 		Handler: httpInboundPort.Routes(),
 	}
+
+	natsInboundPort := &in_messaging.NatsInboundPort{
+		Nc:  natsConn,
+		Svc: authSvc,
+	}
+
+	natsInboundPort.Subscribe("auth.user.registered.v1")
 
 	reg := registry.New(
 		envOr("CONSUL_ADDR", "consul"),

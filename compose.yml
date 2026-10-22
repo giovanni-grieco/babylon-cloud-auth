@@ -151,6 +151,7 @@ services:
       cluster-net-1:
         aliases:
           - auth-svc
+      message-net:
     depends_on:
       consul-1:
         condition: service_started
@@ -170,6 +171,8 @@ services:
       cluster-net-2:
         aliases:
           - auth-svc
+      message-net:
+      
     depends_on:
       consul-2:
         condition: service_started
