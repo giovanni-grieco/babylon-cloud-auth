@@ -70,6 +70,14 @@ func (s *PostgresStore) GetUser(ctx context.Context, username string) (domain.Us
 	return rec.toDomain(), nil
 }
 
+func (s *PostgresStore) ListUsernames(ctx context.Context) ([]string, error) {
+	var usernames []string
+	if err := s.db.WithContext(ctx).Model(&userRecord{}).Pluck("username", &usernames).Error; err != nil {
+		return nil, fmt.Errorf("list usernames: %w", err)
+	}
+	return usernames, nil
+}
+
 func (s *PostgresStore) GetUserByEmail(ctx context.Context, email string) (domain.User, error) {
 	var rec userRecord
 

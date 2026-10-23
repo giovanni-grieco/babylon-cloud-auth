@@ -49,14 +49,16 @@ Requests to the mock service pass through Traefik's `auth-middleware`, which cal
 The current HRD flow is:
 
 1. A request without the `auth=1234` demo cookie is redirected to central auth at `/login`.
-2. Central auth resolves the username using `REALM_MAP` (currently `admin=dc-x`), stores `transaction -> username, realm` in Redis, and redirects to `/_realm/{realm}/login?transaction=...`.
+2. Each realm uploads a serialized Bloom filter containing its local usernames to central auth at startup and after a successful registration. Central auth tests those filters to resolve the username, stores `transaction -> username, realm` in Redis, and redirects to `/_realm/{realm}/login?transaction=...`.
 3. NGINX routes `dc-x` to gateway 1 and `dc-y` to gateway 2. The gateway forwards `/login` to its local auth service.
 4. The realm auth service exchanges the transaction with central auth over the internal network, so it can display the resolved username and validate only the password locally.
 5. After successful authentication, the transaction is consumed and the service sets the existing demo cookie before redirecting to the original path.
 
 The transaction exchange is authenticated with `CENTRAL_AUTH_INTERNAL_TOKEN`. NATS is not used for the interactive login handshake; it remains available for asynchronous lifecycle events.
 
-This is still a prototype: the `auth=1234` cookie and realm mapping must be replaced by signed access/refresh tokens, secure cookies, key rotation, and a durable user-to-realm directory before production use.
+Registration is handled by the currently selected realm through the normal IP-hashed NGINX route. The realm rebuilds and uploads its Bloom filter after creating the user. Bloom filters can have false positives, so the selected realm remains the authority and rejects a transaction if the username is not actually present locally.
+
+This is still a prototype: the `auth=1234` cookie must be replaced by signed access/refresh tokens and secure cookies before production use.
 
 
 HOME Realm Discovery

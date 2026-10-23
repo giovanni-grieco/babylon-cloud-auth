@@ -34,7 +34,6 @@ services:
     container_name: central-auth-svc
     environment:
       - REDIS_ADDR=central-auth-kv:6379
-      - REALM_MAP=admin=dc-x
       - CENTRAL_AUTH_INTERNAL_TOKEN=development-only
     networks:
       - edge-net

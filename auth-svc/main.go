@@ -3,6 +3,7 @@ package main
 import (
 	"auth-svc/internal/inbound/httpin"
 	in_messaging "auth-svc/internal/inbound/messaging"
+	"auth-svc/internal/outbound"
 	out_messaging "auth-svc/internal/outbound/messaging"
 	"auth-svc/internal/registry"
 	"auth-svc/internal/service"
@@ -68,7 +69,23 @@ func main() {
 		Nc: natsConn,
 	}
 
-	authSvc := service.NewAuthService(serviceUniqueId, postgresStore, redisStore, natsOutboundClient)
+	bloomPublisher := &outbound.BloomPublisher{
+		Store:      postgresStore,
+		CentralURL: envOr("CENTRAL_AUTH_URL", "http://central-auth-svc:8080"),
+		Realm:      envOr("REALM_ID", ""),
+		AuthToken:  envOr("CENTRAL_AUTH_INTERNAL_TOKEN", "development-only"),
+	}
+	authSvc := service.NewAuthService(serviceUniqueId, postgresStore, redisStore, natsOutboundClient, bloomPublisher)
+	for attempt := 1; attempt <= 5; attempt++ {
+		if err := bloomPublisher.Publish(ctx); err == nil {
+			break
+		} else if attempt == 5 {
+			log.Printf("initial bloom filter upload failed after %d attempts: %v", attempt, err)
+		} else {
+			log.Printf("initial bloom filter upload attempt %d failed: %v", attempt, err)
+			time.Sleep(2 * time.Second)
+		}
+	}
 
 	httpInboundPort := httpin.New(
 		httpin.HttpInboundPortConfig{

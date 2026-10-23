@@ -8,20 +8,22 @@ import (
 )
 
 type AuthService struct {
-	SvcName       string
-	UserStore     UserStore
-	SessionStore  SessionStore
-	MessageClient OutboundMessageClient
-	Argon2idHash  utils.Argon2idHash
+	SvcName        string
+	UserStore      UserStore
+	SessionStore   SessionStore
+	MessageClient  OutboundMessageClient
+	BloomPublisher BloomPublisher
+	Argon2idHash   utils.Argon2idHash
 }
 
-func NewAuthService(SvcName string, userStore UserStore, sessionStore SessionStore, messageClient OutboundMessageClient) *AuthService {
+func NewAuthService(SvcName string, userStore UserStore, sessionStore SessionStore, messageClient OutboundMessageClient, bloomPublisher BloomPublisher) *AuthService {
 	return &AuthService{
-		SvcName:       SvcName,
-		UserStore:     userStore,
-		SessionStore:  sessionStore,
-		MessageClient: messageClient,
-		Argon2idHash:  utils.NewArgon2idHash(utils.Argon2idHashConfigDefault()),
+		SvcName:        SvcName,
+		UserStore:      userStore,
+		SessionStore:   sessionStore,
+		MessageClient:  messageClient,
+		BloomPublisher: bloomPublisher,
+		Argon2idHash:   utils.NewArgon2idHash(utils.Argon2idHashConfigDefault()),
 	}
 }
 
@@ -72,7 +74,12 @@ func (s *AuthService) Register(
 		return fmt.Errorf("create user: %w", err)
 	}
 
-	// DONT PUBLISH EVENTS FOR NOW - IN THE FUTURE WE WILL UPLOAD A NEW BLOOM FILTER TO THE CENTRAL-AUTH-SVC
+	if s.BloomPublisher != nil {
+		if err := s.BloomPublisher.Publish(ctx); err != nil {
+			return fmt.Errorf("publish realm bloom filter: %w", err)
+		}
+	}
+
 	// CreateUser currently receives the user by value, so retrieve the
 	// persisted record to obtain the database-generated ID.
 	/*registeredUser, err := s.UserStore.GetUserByEmail(ctx, email)

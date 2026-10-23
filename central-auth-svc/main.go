@@ -14,8 +14,10 @@ import (
 	"net/url"
 	"os"
 	"strings"
+	"sync"
 	"time"
 
+	"github.com/bits-and-blooms/bloom/v3"
 	"github.com/redis/go-redis/v9"
 )
 
@@ -32,6 +34,8 @@ type loginTransaction struct {
 type app struct {
 	redis         *redis.Client
 	realmByUser   map[string]string
+	filters       map[string]*bloom.BloomFilter
+	filtersMu     sync.RWMutex
 	internalToken string
 	templates     *template.Template
 }
@@ -48,7 +52,7 @@ func main() {
 
 	a := &app{
 		redis:         redisClient,
-		realmByUser:   parseRealmMap(envOr("REALM_MAP", "admin=dc-x")),
+		filters:       make(map[string]*bloom.BloomFilter),
 		internalToken: envOr("CENTRAL_AUTH_INTERNAL_TOKEN", "development-only"),
 		templates:     template.Must(template.ParseFS(templateFS, "templates/*.html")),
 	}
@@ -59,6 +63,7 @@ func main() {
 	mux.HandleFunc("POST /login", a.loginPost)
 	mux.HandleFunc("GET /internal/login-transactions/", a.exchangePreview)
 	mux.HandleFunc("POST /internal/login-transactions/", a.exchange)
+	mux.HandleFunc("PUT /internal/realms/", a.uploadBloom)
 
 	log.Println("Central auth service running on :8080")
 	if err := http.ListenAndServe(":8080", mux); err != nil {
@@ -97,7 +102,7 @@ func (a *app) loginPost(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/login?error=Username+is+required", http.StatusSeeOther)
 		return
 	}
-	realm, ok := a.realmByUser[strings.ToLower(username)]
+	realm, ok := a.resolveRealm(username)
 	if !ok {
 		http.Redirect(w, r, "/login?error=Unknown+user", http.StatusSeeOther)
 		return
@@ -108,6 +113,7 @@ func (a *app) loginPost(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "could not create login transaction", http.StatusInternalServerError)
 		return
 	}
+
 	transaction := loginTransaction{Username: username, Realm: realm}
 	value, err := json.Marshal(transaction)
 	if err != nil {
@@ -127,6 +133,45 @@ func (a *app) loginPost(w http.ResponseWriter, r *http.Request) {
 	target := fmt.Sprintf("/_realm/%s/login?transaction=%s&return=%s",
 		realm, transactionID, url.QueryEscape(returnPath))
 	http.Redirect(w, r, target, http.StatusSeeOther)
+}
+
+func (a *app) uploadBloom(w http.ResponseWriter, r *http.Request) {
+	if r.Header.Get("X-Central-Auth-Token") != a.internalToken {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+	realmPath := strings.TrimPrefix(r.URL.Path, "/internal/realms/")
+	if !strings.HasSuffix(realmPath, "/bloom") {
+		http.Error(w, "invalid realm", http.StatusBadRequest)
+		return
+	}
+	realm := strings.TrimSuffix(realmPath, "/bloom")
+	if realm == "" || strings.Contains(realm, "/") {
+		http.Error(w, "invalid realm", http.StatusBadRequest)
+		return
+	}
+	filter := bloom.New(0, 0)
+	_, err := filter.ReadFrom(r.Body)
+	if err != nil {
+		http.Error(w, "invalid bloom filter", http.StatusBadRequest)
+		return
+	}
+	a.filtersMu.Lock()
+	a.filters[realm] = filter
+	a.filtersMu.Unlock()
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (a *app) resolveRealm(username string) (string, bool) {
+	normalized := strings.ToLower(strings.TrimSpace(username))
+	a.filtersMu.RLock()
+	defer a.filtersMu.RUnlock()
+	for realm, filter := range a.filters {
+		if filter.TestString(normalized) {
+			return realm, true
+		}
+	}
+	return "", false
 }
 
 func (a *app) exchange(w http.ResponseWriter, r *http.Request) {
@@ -187,17 +232,6 @@ func (a *app) exchangePreview(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(transaction)
-}
-
-func parseRealmMap(raw string) map[string]string {
-	result := make(map[string]string)
-	for _, item := range strings.Split(raw, ",") {
-		parts := strings.SplitN(item, "=", 2)
-		if len(parts) == 2 && parts[0] != "" && parts[1] != "" {
-			result[strings.ToLower(strings.TrimSpace(parts[0]))] = strings.TrimSpace(parts[1])
-		}
-	}
-	return result
 }
 
 func randomToken() (string, error) {

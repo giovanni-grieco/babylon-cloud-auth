@@ -165,8 +165,11 @@ func (s *HttpInboundPort) handleLoginPost(w http.ResponseWriter, r *http.Request
 	}
 
 	cookie := http.Cookie{
-		Name:  "auth",
-		Value: "1234",
+		Name:     "auth",
+		Value:    "1234",
+		Path:     "/",
+		HttpOnly: true,
+		SameSite: http.SameSiteLaxMode,
 	}
 	http.SetCookie(w, &cookie)
 
