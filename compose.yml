@@ -2,7 +2,7 @@ services:
   #NATS Message Broker
   message-broker:
     image: nats:alpine
-    container_name: n1
+    container_name: message-broker
     command: -c /etc/nats/nats.conf
     ports:
       - "4222:4222" # client port
@@ -27,6 +27,40 @@ services:
     depends_on:
       - api-gateway-1
       - api-gateway-2
+      - central-auth-svc
+
+  central-auth-svc:
+    build: ./central-auth-svc
+    container_name: central-auth-svc
+    ports:
+      - "8080:8080"
+    networks:
+      - edge-net
+      - message-net
+    depends_on:
+      central-auth-kv:
+        condition: service_healthy
+      message-broker:
+        condition: service_started
+  
+  central-auth-kv:
+    image: redis:latest
+    container_name: central-auth-kv
+    volumes:
+        - ./central-auth-kv:/data
+    environment:
+        - REDIS_ARGS=
+    ports:
+      - "6375:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 3
+    networks:
+      edge-net:
+        aliases:
+          - central-auth-kv
 
   # 1. API GATEWAY (one per cluster; duplicate for cluster B later)
   api-gateway-1:

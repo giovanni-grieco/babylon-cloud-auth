@@ -72,7 +72,8 @@ func main() {
 
 	httpInboundPort := httpin.New(
 		httpin.HttpInboundPortConfig{
-			Domain: envOr("AUTH_DOMAIN", "localhost"),
+			Domain:        envOr("AUTH_DOMAIN", "localhost"),
+			SecureCookies: envOr("COOKIE_SECURE", "false") == "true",
 		},
 		authSvc,
 		redisStore)

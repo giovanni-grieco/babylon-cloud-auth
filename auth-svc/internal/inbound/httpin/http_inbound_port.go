@@ -19,6 +19,8 @@ var templateFS embed.FS
 
 type HttpInboundPortConfig struct {
 	Domain string
+	// SecureCookies marks the session cookie Secure (HTTPS only). Off for local plain-HTTP runs.
+	SecureCookies bool
 }
 
 // Service holds the auth service's configuration and dependencies.
@@ -49,7 +51,9 @@ func (s *HttpInboundPort) Routes() http.Handler {
 	mux.HandleFunc("POST /register", s.handleRegisterPost)
 	mux.HandleFunc("GET /verify", s.handleVerify)
 
-	return mux
+	// Rejects cross-site POST/PUT/DELETE (CSRF, including login CSRF) based on
+	// the browser-set Sec-Fetch-Site / Origin headers. GETs are not checked.
+	return http.NewCrossOriginProtection().Handler(mux)
 }
 
 func (s *HttpInboundPort) handleHealth(w http.ResponseWriter, r *http.Request) {
@@ -95,8 +99,12 @@ func (s *HttpInboundPort) handleLoginPost(w http.ResponseWriter, r *http.Request
 	}
 
 	cookie := http.Cookie{
-		Name:  "auth",
-		Value: "1234",
+		Name:     "auth",
+		Value:    "1234",
+		Path:     "/",
+		HttpOnly: true,
+		Secure:   s.cfg.SecureCookies,
+		SameSite: http.SameSiteLaxMode, // not sent on cross-site POSTs
 	}
 	http.SetCookie(w, &cookie)
 
@@ -155,8 +163,15 @@ func (s *HttpInboundPort) handleRegisterPost(w http.ResponseWriter, r *http.Requ
 }
 
 // Stub: always authenticates. Replace with real token validation later.
-// Method-agnostic on purpose: forwardAuth preserves the original request method.
+// forwardAuth always calls this with GET; the original method is in X-Forwarded-Method.
 func (s *HttpInboundPort) handleVerify(w http.ResponseWriter, r *http.Request) {
+	// CrossOriginProtection skips GETs, so the forwarded request is checked here:
+	// this covers every route behind auth-middleware.
+	if s.isCrossSiteWrite(r) {
+		http.Error(w, "forbidden", http.StatusForbidden)
+		return
+	}
+
 	ctx := r.Context()
 	cookie, err := r.Cookie("auth")
 
@@ -185,6 +200,36 @@ func (s *HttpInboundPort) handleVerify(w http.ResponseWriter, r *http.Request) {
 	} else {
 		fmt.Fprintf(w, "cookie: %s", cookie.Value)
 	}
+}
+
+// isCrossSiteWrite reports whether the original (forwarded) request is a
+// state-changing request started by another site.
+func (s *HttpInboundPort) isCrossSiteWrite(r *http.Request) bool {
+	method := r.Header.Get("X-Forwarded-Method")
+	if method == "" {
+		method = r.Method
+	}
+	switch method {
+	case http.MethodGet, http.MethodHead, http.MethodOptions:
+		return false
+	}
+
+	// Modern browsers: they say outright where the request came from.
+	switch r.Header.Get("Sec-Fetch-Site") {
+	case "cross-site":
+		return true
+	case "same-origin", "same-site", "none":
+		return false
+	}
+
+	// Older browsers: compare Origin with our public domain. r.Host can't be
+	// used here, it's auth-svc's internal address.
+	origin := r.Header.Get("Origin")
+	if origin == "" {
+		return false // not a browser cross-site request (curl, service-to-service)
+	}
+	u, err := url.Parse(origin)
+	return err != nil || u.Host != s.cfg.Domain
 }
 
 func generateRandomStateToken() string {
