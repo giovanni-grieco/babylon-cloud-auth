@@ -27,6 +27,34 @@ services:
     depends_on:
       - api-gateway-1
       - api-gateway-2
+      - central-auth-svc
+
+  central-auth-svc:
+    build: ./central-auth-svc
+    container_name: central-auth-svc
+    environment:
+      - REDIS_ADDR=central-auth-kv:6379
+      - REALM_MAP=admin=dc-x
+      - CENTRAL_AUTH_INTERNAL_TOKEN=development-only
+    networks:
+      - edge-net
+      - central-net
+    depends_on:
+      central-auth-kv:
+        condition: service_healthy
+
+  central-auth-kv:
+    image: redis:latest
+    container_name: central-auth-kv
+    volumes:
+      - ./central-auth-kv:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 3
+    networks:
+      - central-net
 
   # 1. API GATEWAY (one per cluster; duplicate for cluster B later)
   api-gateway-1:
@@ -147,11 +175,16 @@ services:
     container_name: auth-svc-1
     environment:
       - CONSUL_ADDR=consul-1
+      - SERVICE_ADDRESS=auth-svc-1
+      - REALM_ID=dc-x
+      - CENTRAL_AUTH_URL=http://central-auth-svc:8080
+      - CENTRAL_AUTH_INTERNAL_TOKEN=development-only
     networks:
       cluster-net-1:
         aliases:
           - auth-svc
       message-net:
+      central-net:
     depends_on:
       consul-1:
         condition: service_started
@@ -167,11 +200,16 @@ services:
     container_name: auth-svc-2
     environment:
       - CONSUL_ADDR=consul-2
+      - SERVICE_ADDRESS=auth-svc-2
+      - REALM_ID=dc-y
+      - CENTRAL_AUTH_URL=http://central-auth-svc:8080
+      - CENTRAL_AUTH_INTERNAL_TOKEN=development-only
     networks:
       cluster-net-2:
         aliases:
           - auth-svc
       message-net:
+      central-net:
       
     depends_on:
       consul-2:
@@ -275,4 +313,7 @@ networks:
     driver: bridge
   
   message-net:
+    driver: bridge
+
+  central-net:
     driver: bridge

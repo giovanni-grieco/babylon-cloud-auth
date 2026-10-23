@@ -8,13 +8,13 @@
 <body>
   <main>
     <h1>Login Form</h1>
-    <p>Try admin-admin ;p</p>
     {{ if .Error }}<p class="error">{{ .Error }}</p>{{ end }}
-    <form method="post" action="/login">
-      <input type="hidden" name="state" value="{{ .State }}">
+    <form method="post" action="{{ .Action }}">
+      <input type="hidden" name="transaction" value="{{ .Transaction }}">
+      <input type="hidden" name="return" value="{{ .Return }}">
       <div class="field">
-        <label for="username">Username</label>
-        <input id="username" name="username" type="text" autocomplete="username" required autofocus>
+        <label>Username</label>
+        <strong>{{ .Username }}</strong>
       </div>
 
       <div class="field">

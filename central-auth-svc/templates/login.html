@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Choose account</title>
+</head>
+<body>
+  <main>
+    <h1>Sign in</h1>
+    {{ if .Error }}<p class="error">{{ .Error }}</p>{{ end }}
+    <form method="post" action="/login">
+      <input type="hidden" name="return" value="{{ .Return }}">
+      <label for="username">Username</label>
+      <input id="username" name="username" type="text" autocomplete="username" required autofocus>
+      <button type="submit">Continue</button>
+    </form>
+  </main>
+</body>
+</html>

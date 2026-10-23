@@ -18,13 +18,13 @@ At "http://localhost:80" you can check the mock service answer to your HTTP GET 
 To stop the whole architecture run ```docker compose down``` or ```stop.sh```
 
 # Architecture
-The architecture is composed of multiple mock services, an auth service, API gateways, service registries and a load balancer.
+The architecture is composed of multiple mock services, realm-local auth services, a central auth service, API gateways, service registries and a load balancer.
 
 In particular, we have 2 clusters, each cluster has its own network. Inside each cluster there's exactly 1 Traefik API Gateway and exactly 1 Consul Service Registry. The API gateway service endpoints are updated at runtime by consulting the Service Registry.
 
 Exactly 2 mock services (mock-svc) exist for each cluster. They register on Consul at start-time and provide an health check every x-amount of seconds. When the process dies, they de-register from Consul.
 
-Exactly 1 auth service (auth-svc) exists per cluster. It self-registers with Consul under the service name `auth` and exposes a `/verify` endpoint consumed by Traefik's forward-auth middleware. Routing rules live declaratively in `traefik/dynamic.yml`: `mock-router` (protected by `auth-middleware`) and `auth-service-router` (host `auth.internal.corp`).
+Exactly 1 realm auth service (auth-svc) exists per cluster. It self-registers with Consul under the service name `auth`, owns that realm's password database, and exposes `/verify` for Traefik's forward-auth middleware. The central auth service performs home-realm discovery and stores short-lived login transactions in Redis.
 
 On top of the 2 clusters, we have exactly 1 NGINX "edge" load balancer.
 
@@ -44,7 +44,19 @@ Once the cluster is chosen, the request gets passed to the Cluster's API Gateway
 So 4 requests in a row would land on mock-svc-1-1 (cluster 1, instance 1), then mock-svc-2-1 (cluster 2, instance 1), then mock-svc-1-2 and finally mock-svc-2-2. 
 
 # Authentication
-Requests to the mock service pass through Traefik's `auth-middleware`, which calls the auth service `/verify` endpoint. That endpoint is currently a stub (always returns 200 with `X-User-ID: anonymous`); real token validation (access/refresh JWT, signed by the auth service private key) is still to be implemented.
+Requests to the mock service pass through Traefik's `auth-middleware`, which calls the realm auth service `/verify` endpoint.
+
+The current HRD flow is:
+
+1. A request without the `auth=1234` demo cookie is redirected to central auth at `/login`.
+2. Central auth resolves the username using `REALM_MAP` (currently `admin=dc-x`), stores `transaction -> username, realm` in Redis, and redirects to `/_realm/{realm}/login?transaction=...`.
+3. NGINX routes `dc-x` to gateway 1 and `dc-y` to gateway 2. The gateway forwards `/login` to its local auth service.
+4. The realm auth service exchanges the transaction with central auth over the internal network, so it can display the resolved username and validate only the password locally.
+5. After successful authentication, the transaction is consumed and the service sets the existing demo cookie before redirecting to the original path.
+
+The transaction exchange is authenticated with `CENTRAL_AUTH_INTERNAL_TOKEN`. NATS is not used for the interactive login handshake; it remains available for asynchronous lifecycle events.
+
+This is still a prototype: the `auth=1234` cookie and realm mapping must be replaced by signed access/refresh tokens, secure cookies, key rotation, and a durable user-to-realm directory before production use.
 
 
 HOME Realm Discovery

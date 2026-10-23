@@ -4,9 +4,7 @@ import (
 	"auth-svc/internal/domain"
 	"auth-svc/internal/utils"
 	"context"
-	"encoding/json"
 	"fmt"
-	"time"
 )
 
 type AuthService struct {
@@ -74,9 +72,10 @@ func (s *AuthService) Register(
 		return fmt.Errorf("create user: %w", err)
 	}
 
+	// DONT PUBLISH EVENTS FOR NOW - IN THE FUTURE WE WILL UPLOAD A NEW BLOOM FILTER TO THE CENTRAL-AUTH-SVC
 	// CreateUser currently receives the user by value, so retrieve the
 	// persisted record to obtain the database-generated ID.
-	registeredUser, err := s.UserStore.GetUserByEmail(ctx, email)
+	/*registeredUser, err := s.UserStore.GetUserByEmail(ctx, email)
 	if err != nil {
 		return fmt.Errorf("get registered user: %w", err)
 	}
@@ -104,7 +103,7 @@ func (s *AuthService) Register(
 		string(payload),
 	); err != nil {
 		return fmt.Errorf("publish user registered event: %w", err)
-	}
+	}*/
 
 	return nil
 }

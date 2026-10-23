@@ -5,20 +5,62 @@ import (
 	"crypto/rand"
 	"embed"
 	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"html/template"
 	"log"
 	"net/http"
 	"net/url"
-	"time"
+	"strings"
 )
 
 //go:embed templates/*
 var templateFS embed.FS
 
 type HttpInboundPortConfig struct {
-	Domain string
+	Domain            string
+	Realm             string
+	CentralAuthURL    string
+	InternalAuthToken string
+}
+
+func (s *HttpInboundPort) lookupTransaction(r *http.Request, transaction string, consume bool) (string, error) {
+	if transaction == "" || s.cfg.CentralAuthURL == "" || s.cfg.InternalAuthToken == "" {
+		return "", errors.New("transaction exchange is not configured")
+	}
+	method := http.MethodGet
+	if consume {
+		method = http.MethodPost
+	}
+	req, err := http.NewRequestWithContext(r.Context(), method,
+		strings.TrimRight(s.cfg.CentralAuthURL, "/")+"/internal/login-transactions/"+url.PathEscape(transaction), nil)
+	if err != nil {
+		return "", err
+	}
+	req.Header.Set("X-Central-Auth-Token", s.cfg.InternalAuthToken)
+	response, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer response.Body.Close()
+	if response.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("central auth returned %s", response.Status)
+	}
+	var result struct {
+		Username string `json:"username"`
+		Realm    string `json:"realm"`
+	}
+	if err := json.NewDecoder(response.Body).Decode(&result); err != nil {
+		return "", err
+	}
+	if result.Username == "" {
+		return "", errors.New("central auth returned an empty username")
+	}
+	if s.cfg.Realm != "" && result.Realm != s.cfg.Realm {
+		return "", errors.New("transaction belongs to another realm")
+	}
+	return result.Username, nil
 }
 
 // Service holds the auth service's configuration and dependencies.
@@ -58,15 +100,31 @@ func (s *HttpInboundPort) handleHealth(w http.ResponseWriter, r *http.Request) {
 }
 
 type loginPage struct {
-	Error string
-	State string
+	Error       string
+	Transaction string
+	Return      string
+	Username    string
+	Action      string
 }
 
 func (s *HttpInboundPort) handleLogin(w http.ResponseWriter, r *http.Request) {
+	transaction := r.URL.Query().Get("transaction")
+	if transaction == "" {
+		http.Error(w, "login transaction is required", http.StatusBadRequest)
+		return
+	}
+	username, err := s.lookupTransaction(r, transaction, false)
+	if err != nil {
+		http.Error(w, "login transaction is invalid or expired", http.StatusGone)
+		return
+	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	data := loginPage{
-		State: r.URL.Query().Get("state"),
-		Error: r.URL.Query().Get("error"),
+		Transaction: transaction,
+		Return:      r.URL.Query().Get("return"),
+		Username:    username,
+		Error:       r.URL.Query().Get("error"),
+		Action:      fmt.Sprintf("/_realm/%s/login", url.PathEscape(s.cfg.Realm)),
 	}
 	if err := s.tpl.ExecuteTemplate(w, "login.html", data); err != nil {
 		log.Printf("render login: %v", err)
@@ -83,14 +141,26 @@ func (s *HttpInboundPort) handleLoginPost(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	formUser := r.FormValue("username")
 	formPass := r.FormValue("password")
-	state := r.FormValue("state")
+	transaction := r.FormValue("transaction")
+	returnPath := r.FormValue("return")
+	username, err := s.lookupTransaction(r, transaction, false)
+	if err != nil {
+		http.Error(w, "login transaction is invalid or expired", http.StatusGone)
+		return
+	}
 
-	if err := s.svc.Login(ctx, formUser, formPass); err != nil {
-		target := fmt.Sprintf("/login?state=%s&error=%s",
-			url.QueryEscape(state), url.QueryEscape("invalid username or password"))
+	if err := s.svc.Login(ctx, username, formPass); err != nil {
+		target := fmt.Sprintf("/_realm/%s/login?transaction=%s&return=%s&error=%s",
+			url.PathEscape(s.cfg.Realm),
+			url.QueryEscape(transaction),
+			url.QueryEscape(returnPath),
+			url.QueryEscape("invalid username or password"))
 		http.Redirect(w, r, target, http.StatusSeeOther)
+		return
+	}
+	if _, err := s.lookupTransaction(r, transaction, true); err != nil {
+		http.Error(w, "login transaction is invalid or expired", http.StatusGone)
 		return
 	}
 
@@ -100,15 +170,11 @@ func (s *HttpInboundPort) handleLoginPost(w http.ResponseWriter, r *http.Request
 	}
 	http.SetCookie(w, &cookie)
 
-	val, err := s.store.GetState(ctx, state)
-
-	if err != nil {
-		log.Printf("redis error: %v\n", err)
-		log.Printf("Redis key not found")
-		val = ""
+	target := returnPath
+	if target == "" || !strings.HasPrefix(target, "/") || strings.HasPrefix(target, "//") {
+		target = "/"
 	}
-
-	http.Redirect(w, r, fmt.Sprintf("http://%s%s", s.cfg.Domain, val), http.StatusSeeOther)
+	http.Redirect(w, r, target, http.StatusSeeOther)
 }
 
 type registerPage struct {
@@ -157,7 +223,6 @@ func (s *HttpInboundPort) handleRegisterPost(w http.ResponseWriter, r *http.Requ
 // Stub: always authenticates. Replace with real token validation later.
 // Method-agnostic on purpose: forwardAuth preserves the original request method.
 func (s *HttpInboundPort) handleVerify(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
 	cookie, err := r.Cookie("auth")
 
 	if err != nil || cookie.Value != "1234" {
@@ -170,14 +235,7 @@ func (s *HttpInboundPort) handleVerify(w http.ResponseWriter, r *http.Request) {
 				log.Printf("RequestURI: %s\n", originalUri)
 			}
 
-			state := generateRandomStateToken()
-
-			if err := s.store.SetState(ctx, state, originalUri, 5*time.Minute); err != nil {
-				log.Println(err)
-				http.Error(w, "server error", http.StatusInternalServerError)
-				return
-			}
-			http.Redirect(w, r, fmt.Sprintf("http://%s/login?state=%s", s.cfg.Domain, state), http.StatusMovedPermanently)
+			http.Redirect(w, r, fmt.Sprintf("http://%s/login?return=%s", s.cfg.Domain, url.QueryEscape(originalUri)), http.StatusSeeOther)
 		default:
 			log.Println(err)
 			http.Error(w, "server error", http.StatusInternalServerError)

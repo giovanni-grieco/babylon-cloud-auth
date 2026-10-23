@@ -72,7 +72,10 @@ func main() {
 
 	httpInboundPort := httpin.New(
 		httpin.HttpInboundPortConfig{
-			Domain: envOr("AUTH_DOMAIN", "localhost"),
+			Domain:            envOr("AUTH_DOMAIN", "localhost"),
+			Realm:             envOr("REALM_ID", ""),
+			CentralAuthURL:    envOr("CENTRAL_AUTH_URL", "http://central-auth-svc:8080"),
+			InternalAuthToken: envOr("CENTRAL_AUTH_INTERNAL_TOKEN", "development-only"),
 		},
 		authSvc,
 		redisStore)
@@ -94,6 +97,7 @@ func main() {
 		envOr("CONSUL_PORT", "8500"),
 		serviceName,
 		servicePort,
+		envOr("SERVICE_ADDRESS", ""),
 	)
 
 	go reg.RegisterLoop()

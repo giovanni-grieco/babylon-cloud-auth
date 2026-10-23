@@ -18,30 +18,35 @@ type Client struct {
 	instanceID  string
 	serviceName string
 	servicePort int
+	serviceAddr string
 	httpClient  *http.Client
 }
 
-func New(consulAddr, consulPort, serviceName string, servicePort int) *Client {
+func New(consulAddr, consulPort, serviceName string, servicePort int, serviceAddr string) *Client {
 	return &Client{
 		consulAddr:  consulAddr,
 		consulPort:  consulPort,
 		instanceID:  hostname(),
 		serviceName: serviceName,
 		servicePort: servicePort,
+		serviceAddr: serviceAddr,
 		httpClient:  &http.Client{Timeout: 5 * time.Second},
 	}
 }
 
 func (c *Client) Register() bool {
-	ip := containerIP()
+	address := c.serviceAddr
+	if address == "" {
+		address = containerIP()
+	}
 	payload := serviceRegistration{
 		ID:      c.instanceID,
 		Name:    c.serviceName,
-		Address: ip,
+		Address: address,
 		Port:    c.servicePort,
 		Tags:    []string{"traefik.enable=true"},
 		Check: healthCheck{
-			HTTP:                           fmt.Sprintf("http://%s:%d/health", ip, c.servicePort),
+			HTTP:                           fmt.Sprintf("http://%s:%d/health", address, c.servicePort),
 			Interval:                       "10s",
 			Timeout:                        "2s",
 			DeregisterCriticalServiceAfter: "30s",
