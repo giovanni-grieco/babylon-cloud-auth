@@ -5,9 +5,9 @@ services:
     container_name: message-broker
     command: -c /etc/nats/nats.conf
     ports:
-      - "4222:4222" # client port
-      - "6222:6222" # cluster port
-      - "8222:8222" # monitoring port
+      - "127.0.0.1:4222:4222" # client port
+      - "127.0.0.1:6222:6222" # cluster port
+      - "127.0.0.1:8222:8222" # monitoring port
     volumes:
       - ./nats/nats.conf:/etc/nats/nats.conf
       - ./nats/data:/data
@@ -33,7 +33,7 @@ services:
     build: ./central-auth-svc
     container_name: central-auth-svc
     ports:
-      - "8080:8080"
+      - "127.0.0.1:8080:8080"
     networks:
       edge-net:
         aliases:
@@ -53,7 +53,7 @@ services:
     environment:
         - REDIS_ARGS=
     ports:
-      - "6371:6379"
+      - "127.0.0.1:6371:6379"
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
@@ -78,7 +78,7 @@ services:
     volumes:
       - ./traefik:/etc/traefik/dynamic:ro
     ports:
-      - "8081:8080"                             # Traefik dashboard
+      - "127.0.0.1:8081:8080"                             # Traefik dashboard
     networks:
       - edge-net
       - cluster-net-1
@@ -98,7 +98,7 @@ services:
     volumes:
       - ./traefik:/etc/traefik/dynamic:ro
     ports:
-      - "8082:8080"                             # Traefik dashboard
+      - "127.0.0.1:8082:8080"                             # Traefik dashboard
     networks:
       - edge-net
       - cluster-net-2
@@ -111,7 +111,7 @@ services:
     container_name: consul-1
     command: agent -server -bootstrap-expect=1 -client=0.0.0.0 -ui -data-dir=/consul/data
     ports:
-      - "8501:8500"                             # HTTP API + UI
+      - "127.0.0.1:8501:8500"                             # HTTP API + UI
     networks:
       cluster-net-1:
         aliases: 
@@ -122,7 +122,7 @@ services:
     container_name: consul-2
     command: agent -server -bootstrap-expect=1 -client=0.0.0.0 -ui -data-dir=/consul/data
     ports:
-      - "8502:8500"                             # HTTP API + UI
+      - "127.0.0.1:8502:8500"                             # HTTP API + UI
     networks:
       cluster-net-2:
         aliases:
@@ -231,7 +231,7 @@ services:
     image: postgres:latest
     container_name: auth-db-1
     ports:
-      - "5431:5432"
+      - "127.0.0.1:5431:5432"
     environment:
       - POSTGRES_USER=postgres
       - POSTGRES_PASSWORD=postgres
@@ -252,7 +252,7 @@ services:
     image: postgres:latest
     container_name: auth-db-2
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
     environment:
       - POSTGRES_USER=postgres
       - POSTGRES_PASSWORD=postgres
