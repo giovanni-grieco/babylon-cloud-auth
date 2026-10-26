@@ -62,15 +62,17 @@ func (s *HttpInboundPort) handleHealth(w http.ResponseWriter, r *http.Request) {
 }
 
 type loginPage struct {
-	Error string
-	State string
+	Error     string
+	State     string
+	ReturnUrl string
 }
 
 func (s *HttpInboundPort) handleLogin(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	data := loginPage{
-		State: r.URL.Query().Get("state"),
-		Error: r.URL.Query().Get("error"),
+		State:     r.URL.Query().Get("state"),
+		Error:     r.URL.Query().Get("error"),
+		ReturnUrl: fmt.Sprintf("/realm/%s/login", s.svc.RealmID),
 	}
 	if err := s.tpl.ExecuteTemplate(w, "login.html", data); err != nil {
 		log.Printf("render login: %v", err)

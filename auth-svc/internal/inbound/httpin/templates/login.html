@@ -10,7 +10,7 @@
     <h1>Login Form</h1>
     <p>Try admin-admin ;p</p>
     {{ if .Error }}<p class="error">{{ .Error }}</p>{{ end }}
-    <form method="post" action="/login">
+    <form method="post" action="{{ .ReturnUrl }}">
       <input type="hidden" name="state" value="{{ .State }}">
       <div class="field">
         <label for="username">Username</label>
