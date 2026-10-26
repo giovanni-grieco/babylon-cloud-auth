@@ -9,6 +9,7 @@ import (
 	"auth-svc/internal/store"
 	"context"
 	"errors"
+	"fmt"
 	"log"
 	"net/http"
 	"os"
@@ -79,7 +80,7 @@ func main() {
 		redisStore)
 
 	httpServer := &http.Server{
-		Addr:    ":8080",
+		Addr:    fmt.Sprintf(":%d", servicePort),
 		Handler: httpInboundPort.Routes(),
 	}
 

@@ -1,3 +1,4 @@
+import logging
 import os
 import signal
 import socket
@@ -10,6 +11,16 @@ from flask import Flask, render_template
 
 app = Flask(__name__)
 app.config["TEMPLATES_AUTO_RELOAD"] = True
+
+
+class HealthCheckFilter(logging.Filter):
+    """Drop Werkzeug access log lines for Consul's /health checks."""
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        return "GET /health " not in record.getMessage()
+
+
+logging.getLogger("werkzeug").addFilter(HealthCheckFilter())
 
 SERVICE_NAME = "mock"
 SERVICE_PORT = 8888

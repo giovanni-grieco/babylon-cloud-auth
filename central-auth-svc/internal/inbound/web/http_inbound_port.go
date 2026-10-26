@@ -7,6 +7,7 @@ import (
 	"html/template"
 	"log"
 	"net/http"
+	"net/url"
 )
 
 //go:embed templates/*
@@ -43,6 +44,7 @@ func (s *HttpInboundPort) Routes() http.Handler {
 
 	mux.HandleFunc("GET /health", s.handleHealth)
 	mux.HandleFunc("GET /login", s.handleLogin)
+	mux.HandleFunc("POST /login", s.handleLoginPost)
 
 	// Rejects cross-site POST/PUT/DELETE (CSRF, including login CSRF) based on
 	// the browser-set Sec-Fetch-Site / Origin headers. GETs are not checked.
@@ -63,4 +65,34 @@ func (s *HttpInboundPort) handleLogin(w http.ResponseWriter, r *http.Request) {
 		log.Printf("render login: %v", err)
 		http.Error(w, "server error", http.StatusInternalServerError)
 	}
+}
+
+type loginForm struct {
+	State    string
+	Error    string
+	Username string
+}
+
+func (s *HttpInboundPort) handleLoginPost(w http.ResponseWriter, r *http.Request) {
+	data := loginForm{
+		State:    r.FormValue("state"),
+		Error:    r.FormValue("error"),
+		Username: r.FormValue("username"),
+	}
+
+	realmName, err := s.svc.FindRealm(r.Context(), data.Username)
+	if err != nil {
+		log.Printf("post login: %v", err)
+		errorMsg := url.QueryEscape("Username doesn't exist for any realm")
+		if data.State != "" {
+			http.Redirect(w, r, fmt.Sprintf("/login?state=%s&error=%s", data.State, errorMsg), http.StatusSeeOther)
+		} else {
+			http.Redirect(w, r, fmt.Sprintf("/login?error=%s", errorMsg), http.StatusSeeOther)
+		}
+		return
+	}
+
+	log.Printf("realm found: %s", realmName)
+	http.Redirect(w, r, fmt.Sprintf("/realm/%s/login?state=%s", realmName, data.State), http.StatusSeeOther)
+
 }
