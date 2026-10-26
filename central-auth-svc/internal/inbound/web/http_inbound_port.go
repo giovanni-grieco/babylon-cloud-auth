@@ -93,6 +93,12 @@ func (s *HttpInboundPort) handleLoginPost(w http.ResponseWriter, r *http.Request
 	}
 
 	log.Printf("realm found: %s", realmName)
-	http.Redirect(w, r, fmt.Sprintf("/realm/%s/login?state=%s", realmName, data.State), http.StatusSeeOther)
+	// login_hint (as in OIDC) lets the realm prefill the username.
+	q := url.Values{}
+	q.Set("login_hint", data.Username)
+	if data.State != "" {
+		q.Set("state", data.State)
+	}
+	http.Redirect(w, r, fmt.Sprintf("/realm/%s/login?%s", url.PathEscape(realmName), q.Encode()), http.StatusSeeOther)
 
 }

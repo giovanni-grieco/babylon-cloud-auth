@@ -64,6 +64,7 @@ func (s *HttpInboundPort) handleHealth(w http.ResponseWriter, r *http.Request) {
 type loginPage struct {
 	Error     string
 	State     string
+	Username  string
 	ReturnUrl string
 }
 
@@ -72,6 +73,7 @@ func (s *HttpInboundPort) handleLogin(w http.ResponseWriter, r *http.Request) {
 	data := loginPage{
 		State:     r.URL.Query().Get("state"),
 		Error:     r.URL.Query().Get("error"),
+		Username:  r.URL.Query().Get("login_hint"),
 		ReturnUrl: fmt.Sprintf("/realm/%s/login", s.svc.RealmID),
 	}
 	if err := s.tpl.ExecuteTemplate(w, "login.html", data); err != nil {
@@ -94,9 +96,14 @@ func (s *HttpInboundPort) handleLoginPost(w http.ResponseWriter, r *http.Request
 	state := r.FormValue("state")
 
 	if err := s.svc.Login(ctx, formUser, formPass); err != nil {
-		target := fmt.Sprintf("/login?state=%s&error=%s",
-			url.QueryEscape(state), url.QueryEscape("invalid username or password"))
-		http.Redirect(w, r, target, http.StatusSeeOther)
+		// Back to this realm's login page, keeping the username for the retry.
+		q := url.Values{}
+		q.Set("error", "invalid username or password")
+		q.Set("login_hint", formUser)
+		if state != "" {
+			q.Set("state", state)
+		}
+		http.Redirect(w, r, fmt.Sprintf("/realm/%s/login?%s", s.svc.RealmID, q.Encode()), http.StatusSeeOther)
 		return
 	}
 

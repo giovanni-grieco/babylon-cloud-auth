@@ -13,13 +13,19 @@
     <form method="post" action="{{ .ReturnUrl }}">
       <input type="hidden" name="state" value="{{ .State }}">
       <div class="field">
-        <label for="username">Username</label>
-        <input id="username" name="username" type="text" autocomplete="username" required autofocus>
+        {{ if .Username }}
+          <p>Signing in as <strong>{{ .Username }}</strong>
+             (<a href="/login?state={{ .State }}">not you?</a>)</p>
+          <input type="hidden" name="username" value="{{ .Username }}">
+        {{ else }}
+          <label for="username">Username</label>
+          <input id="username" name="username" type="text" autocomplete="username" required autofocus>
+        {{ end }}
       </div>
 
       <div class="field">
         <label for="password">Password</label>
-        <input id="password" name="password" type="password" autocomplete="current-password" required>
+        <input id="password" name="password" type="password" autocomplete="current-password" required{{ if .Username }} autofocus{{ end }}>
       </div>
 
       <button type="submit">Log in</button>
