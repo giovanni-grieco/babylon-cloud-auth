@@ -133,3 +133,26 @@ func (s *PostgresStore) DeleteUser(ctx context.Context, username string) error {
 
 	return nil
 }
+
+const forEachUsernameBatchSize = 1000
+
+func (s *PostgresStore) ForEachUsername(ctx context.Context, fn func(username string) error) error {
+	var batch []userRecord
+
+	// Batched so large realms are never loaded into memory at once.
+	result := s.db.WithContext(ctx).
+		Select("id", "username").
+		FindInBatches(&batch, forEachUsernameBatchSize, func(tx *gorm.DB, _ int) error {
+			for _, rec := range batch {
+				if err := fn(rec.Username); err != nil {
+					return err
+				}
+			}
+			return nil
+		})
+	if result.Error != nil {
+		return fmt.Errorf("for each username: %w", result.Error)
+	}
+
+	return nil
+}

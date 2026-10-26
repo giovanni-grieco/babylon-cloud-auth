@@ -5,6 +5,7 @@ import (
 	"central-auth-svc/internal/inbound/web"
 	"central-auth-svc/internal/service"
 	"central-auth-svc/internal/store"
+	"context"
 	"errors"
 	"fmt"
 	"log"
@@ -12,6 +13,7 @@ import (
 	"time"
 
 	"github.com/nats-io/nats.go"
+	"github.com/nats-io/nats.go/jetstream"
 )
 
 const (
@@ -37,12 +39,21 @@ func main() {
 	}
 	defer natsConn.Close()
 
+	js, err := jetstream.New(natsConn)
+	if err != nil {
+		panic(err)
+	}
+
 	inboundMessagePort := messaging.NatsInboundPort{
-		Nc:  natsConn,
+		Js:  js,
 		Svc: svc,
 	}
 
-	inboundMessagePort.Subscribe(service.UserRealmRegisteredSubject)
+	consumeCtx, err := inboundMessagePort.Consume(context.Background())
+	if err != nil {
+		panic(err)
+	}
+	defer consumeCtx.Stop()
 
 	httpInboundPort := web.New(web.HttpInboundPortConfig{
 		Domain:        "localhost",

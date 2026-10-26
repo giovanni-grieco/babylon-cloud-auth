@@ -10,10 +10,17 @@ import (
 // Announces only the username -> realm association, so the central auth
 // service can do home realm discovery. Credentials and PII never leave the realm.
 const (
-	UserRealmRegisteredEventType = "realm.user.registered"
-	UserRealmRegisteredSubject   = "realm.user.registered.v1"
-	eventVersion                 = 1
+	UserRealmRegisteredEventType     = "realm.user.registered"
+	UserRealmRegisteredSubjectPrefix = "realm.user.registered.v1"
+	eventVersion                     = 1
 )
+
+// UserRealmRegisteredSubject gives every user its own subject, so the stream
+// can keep only the latest event per user. Usernames are base64url-encoded
+// because subject tokens can't contain '.', '*', '>' or whitespace.
+func UserRealmRegisteredSubject(username string) string {
+	return UserRealmRegisteredSubjectPrefix + "." + base64.RawURLEncoding.EncodeToString([]byte(username))
+}
 
 type UserRealmRegisteredEvent struct {
 	ID         string                       `json:"id"`

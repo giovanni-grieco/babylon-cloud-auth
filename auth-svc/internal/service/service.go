@@ -76,6 +76,30 @@ func (s *AuthService) Register(
 		return fmt.Errorf("create user: %w", err)
 	}
 
+	// The user now exists: publish even if the client hangs up, otherwise the
+	// central auth service only learns about them at the next restart.
+	publishCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
+	defer cancel()
+	return s.announceUserRealm(publishCtx, username)
+}
+
+// AnnounceRealmUsers publishes a realm event for every user already in this
+// realm's DB. JetStream already keeps every announcement, so this is a backfill
+// for users created before JetStream was in place or a recreated stream.
+// Re-announcing is safe: the stream keeps one message per user.
+func (s *AuthService) AnnounceRealmUsers(ctx context.Context) (int, error) {
+	count := 0
+	err := s.UserStore.ForEachUsername(ctx, func(username string) error {
+		if err := s.announceUserRealm(ctx, username); err != nil {
+			return err
+		}
+		count++
+		return nil
+	})
+	return count, err
+}
+
+func (s *AuthService) announceUserRealm(ctx context.Context, username string) error {
 	event, err := NewUserRealmRegisteredEvent(
 		username,
 		s.RealmID,
@@ -95,9 +119,11 @@ func (s *AuthService) Register(
 		return fmt.Errorf("publish user realm registered event: message client is nil")
 	}
 
-	if err := s.MessageClient.Send(
-		UserRealmRegisteredSubject,
-		string(payload),
+	if err := s.MessageClient.Publish(
+		ctx,
+		UserRealmRegisteredSubject(username),
+		event.ID,
+		payload,
 	); err != nil {
 		return fmt.Errorf("publish user realm registered event: %w", err)
 	}

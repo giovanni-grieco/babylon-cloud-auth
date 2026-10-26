@@ -11,6 +11,8 @@ type UserStore interface {
 	CreateUser(ctx context.Context, user domain.User) error
 	UpdateUser(ctx context.Context, user domain.User) error
 	DeleteUser(ctx context.Context, username string) error
+	// ForEachUsername calls fn for every stored username, stopping at the first error.
+	ForEachUsername(ctx context.Context, fn func(username string) error) error
 }
 
 type SessionStore interface {

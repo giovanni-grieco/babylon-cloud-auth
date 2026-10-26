@@ -19,6 +19,7 @@ import (
 	"uuid"
 
 	"github.com/nats-io/nats.go"
+	"github.com/nats-io/nats.go/jetstream"
 )
 
 const (
@@ -69,11 +70,33 @@ func main() {
 	}
 	defer natsConn.Close()
 
+	js, err := jetstream.New(natsConn)
+	if err != nil {
+		panic(err)
+	}
+
+	if err := out_messaging.EnsureRealmUsersStream(ctx, js); err != nil {
+		panic(err)
+	}
+
 	natsOutboundClient := &out_messaging.NatsOutboundMessageClientImpl{
-		Nc: natsConn,
+		Js: js,
 	}
 
 	authSvc := service.NewAuthService(serviceUniqueId, realmID, postgresStore, redisStore, natsOutboundClient)
+
+	// Backfill the stream with every user in this realm. Async so the HTTP
+	// server isn't held up.
+	go func() {
+		announceCtx, cancel := context.WithTimeout(ctx, 5*time.Minute)
+		defer cancel()
+		count, err := authSvc.AnnounceRealmUsers(announceCtx)
+		if err != nil {
+			log.Printf("announce realm users: %v (announced %d)", err, count)
+			return
+		}
+		log.Printf("announced %d users of realm %s", count, realmID)
+	}()
 
 	httpInboundPort := httpin.New(
 		httpin.HttpInboundPortConfig{
