@@ -61,5 +61,5 @@ func (s *RedisStore) GetRealm(ctx context.Context, username string) (string, err
 }
 
 func (s *RedisStore) SetRealm(ctx context.Context, username, realm_id string) error {
-	return s.client.Set(ctx, username, realm_id, -1).Err()
+	return s.client.Set(ctx, realmPrefix+username, realm_id, 0).Err()
 }

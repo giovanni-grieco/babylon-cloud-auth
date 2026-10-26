@@ -42,7 +42,7 @@ func main() {
 		Svc: svc,
 	}
 
-	inboundMessagePort.Subscribe("realms")
+	inboundMessagePort.Subscribe(service.UserRealmRegisteredSubject)
 
 	httpInboundPort := web.New(web.HttpInboundPortConfig{
 		Domain:        "localhost",

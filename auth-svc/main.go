@@ -2,7 +2,6 @@ package main
 
 import (
 	"auth-svc/internal/inbound/httpin"
-	in_messaging "auth-svc/internal/inbound/messaging"
 	out_messaging "auth-svc/internal/outbound/messaging"
 	"auth-svc/internal/registry"
 	"auth-svc/internal/service"
@@ -30,6 +29,11 @@ const (
 func main() {
 
 	serviceUniqueId := uuid.New().String()
+
+	realmID := os.Getenv("REALM_ID")
+	if realmID == "" {
+		log.Fatal("REALM_ID must be set")
+	}
 
 	ctx := context.Background()
 
@@ -69,7 +73,7 @@ func main() {
 		Nc: natsConn,
 	}
 
-	authSvc := service.NewAuthService(serviceUniqueId, postgresStore, redisStore, natsOutboundClient)
+	authSvc := service.NewAuthService(serviceUniqueId, realmID, postgresStore, redisStore, natsOutboundClient)
 
 	httpInboundPort := httpin.New(
 		httpin.HttpInboundPortConfig{
@@ -83,13 +87,6 @@ func main() {
 		Addr:    fmt.Sprintf(":%d", servicePort),
 		Handler: httpInboundPort.Routes(),
 	}
-
-	natsInboundPort := &in_messaging.NatsInboundPort{
-		Nc:  natsConn,
-		Svc: authSvc,
-	}
-
-	natsInboundPort.Subscribe("auth.user.registered.v1")
 
 	reg := registry.New(
 		envOr("CONSUL_ADDR", "consul"),

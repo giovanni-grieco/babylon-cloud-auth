@@ -183,6 +183,7 @@ services:
     container_name: auth-svc-1
     environment:
       - CONSUL_ADDR=consul-1
+      - REALM_ID=dc-1
     networks:
       edge-net:
         aliases:
@@ -206,6 +207,7 @@ services:
     container_name: auth-svc-2
     environment:
       - CONSUL_ADDR=consul-2
+      - REALM_ID=dc-2
     networks:
       edge-net:
           aliases:
