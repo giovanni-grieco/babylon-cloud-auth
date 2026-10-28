@@ -23,7 +23,7 @@ const (
 
 func main() {
 	redisStore := store.NewRedisStore(store.RedisStoreConfig{
-		Address:    "auth-kv:6379",
+		Address:    "central-auth-kv:6379",
 		Password:   "",
 		DB:         0,
 		SessionTTL: 24 * time.Hour, // Set session TTL to 24 hours

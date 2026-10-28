@@ -39,7 +39,7 @@ func main() {
 	ctx := context.Background()
 
 	redisStore := store.NewRedisStore(store.RedisStoreConfig{
-		Address:    "auth-kv:6379",
+		Address:    "state-kv:6379",
 		Password:   "",
 		DB:         0,
 		SessionTTL: 24 * time.Hour, // Set session TTL to 24 hours

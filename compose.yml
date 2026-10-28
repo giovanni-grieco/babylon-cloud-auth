@@ -42,16 +42,36 @@ services:
           - central-auth-svc
       message-net:
     depends_on:
-      auth-kv:
+      central-auth-kv:
+        condition: service_healthy
+      state-kv:
         condition: service_healthy
       message-broker:
         condition: service_started
-
-  auth-kv:
+  central-auth-kv:
     image: redis:latest
-    container_name: auth-kv
+    container_name: central-auth-kv
     volumes:
-        - ./auth-kv:/data
+        - ./central-auth-kv:/data
+    environment:
+        - REDIS_ARGS=
+    ports:
+      - "127.0.0.1:6370:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 3
+    networks:
+      edge-net:
+        aliases:
+          - central-auth-kv
+
+  state-kv:
+    image: redis:latest
+    container_name: state-kv
+    volumes:
+        - ./state-kv:/data
     environment:
         - REDIS_ARGS=
     ports:
@@ -64,7 +84,7 @@ services:
     networks:
       edge-net:
         aliases:
-          - auth-kv
+          - state-kv
 
   # 1. API GATEWAY (one per cluster; duplicate for cluster B later)
   api-gateway-1:
@@ -199,12 +219,33 @@ services:
     depends_on:
       consul-1:
         condition: service_started
-      auth-kv:
+      auth-kv-1:
+        condition: service_healthy
+      state-kv:
         condition: service_healthy
       auth-db-1:
         condition: service_healthy
       message-broker:
         condition: service_started
+
+  auth-kv-1:
+    image: redis:latest
+    container_name: auth-kv-1
+    volumes:
+        - ./auth-kv-1:/data
+    environment:
+        - REDIS_ARGS=
+    ports:
+      - "127.0.0.1:6361:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 3
+    networks:
+      cluster-net-1:
+        aliases:
+          - auth-kv
   
   auth-svc-2:
     build:
@@ -225,13 +266,33 @@ services:
     depends_on:
       consul-2:
         condition: service_started
-      auth-kv:
+      auth-kv-2:
+        condition: service_healthy
+      state-kv:
         condition: service_healthy
       auth-db-2:
         condition: service_healthy
       message-broker:
         condition: service_started
   
+  auth-kv-2:
+    image: redis:latest
+    container_name: auth-kv-2
+    volumes:
+        - ./auth-kv-2:/data
+    environment:
+        - REDIS_ARGS=
+    ports:
+      - "127.0.0.1:6362:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 3
+    networks:
+      cluster-net-2:
+        aliases:
+          - auth-kv
 
   auth-db-1:
     image: postgres:latest
