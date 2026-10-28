@@ -8,8 +8,8 @@ import (
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 
-	"auth-svc/internal/domain"
 	"auth-svc/internal/service"
+	"common/domain"
 )
 
 var ErrUserNotFound = errors.New("user not found")

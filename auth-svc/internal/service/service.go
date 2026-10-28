@@ -1,8 +1,8 @@
 package service
 
 import (
-	"auth-svc/internal/domain"
 	"auth-svc/internal/utils"
+	"common/domain"
 	"context"
 	"encoding/json"
 	"fmt"

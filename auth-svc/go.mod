@@ -1,8 +1,9 @@
 module auth-svc
 
-go 1.27.2
+go 1.27.3
 
 require (
+	common v0.0.0
 	github.com/nats-io/nats.go v1.54.0
 	github.com/redis/go-redis/v9 v9.23.0
 	golang.org/x/crypto v0.58.0
@@ -26,3 +27,5 @@ require (
 	golang.org/x/sys v0.49.0 // indirect
 	golang.org/x/text v0.43.0 // indirect
 )
+
+replace common => ../common

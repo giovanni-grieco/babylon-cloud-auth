@@ -1,6 +1,6 @@
 package store
 
-import "auth-svc/internal/domain"
+import "common/domain"
 
 type userRecord struct {
 	ID           uint64 `gorm:"column:id;primaryKey;autoIncrement"`

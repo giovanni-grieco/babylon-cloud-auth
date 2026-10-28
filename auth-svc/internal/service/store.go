@@ -1,7 +1,7 @@
 package service
 
 import (
-	"auth-svc/internal/domain"
+	"common/domain"
 	"context"
 )
 
