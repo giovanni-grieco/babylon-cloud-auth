@@ -3,6 +3,7 @@ module central-auth-svc
 go 1.27.3
 
 require (
+	common v0.0.0
 	github.com/nats-io/nats.go v1.54.0
 	github.com/redis/go-redis/v9 v9.23.0
 )
@@ -16,3 +17,5 @@ require (
 	golang.org/x/crypto v0.57.0 // indirect
 	golang.org/x/sys v0.48.0 // indirect
 )
+
+replace common => ../common
