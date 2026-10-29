@@ -57,7 +57,20 @@ func (s *PostgresStore) Migrate(ctx context.Context) error {
 	return nil
 }
 
-func (s *PostgresStore) GetUser(ctx context.Context, username string) (domain.User, error) {
+func (s *PostgresStore) GetUser(ctx context.Context, id uint64) (domain.User, error) {
+	var rec userRecord
+
+	err := s.db.WithContext(ctx).Where("id = ?", id).First(&rec).Error
+	switch {
+	case errors.Is(err, gorm.ErrRecordNotFound):
+		return domain.User{}, ErrUserNotFound
+	case err != nil:
+		return domain.User{}, fmt.Errorf("get user %d: %w", id, err)
+	}
+	return rec.toDomain(), nil
+}
+
+func (s *PostgresStore) GetUserByUsername(ctx context.Context, username string) (domain.User, error) {
 	var rec userRecord
 
 	err := s.db.WithContext(ctx).Where("username = ?", username).First(&rec).Error

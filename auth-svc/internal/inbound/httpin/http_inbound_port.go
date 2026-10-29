@@ -18,8 +18,8 @@ import (
 var templateFS embed.FS
 
 type HttpInboundPortConfig struct {
-	Domain string
-	// SecureCookies marks the session cookie Secure (HTTPS only). Off for local plain-HTTP runs.
+	Domain        string
+	RealmID       string
 	SecureCookies bool
 }
 
@@ -50,6 +50,8 @@ func (s *HttpInboundPort) Routes() http.Handler {
 	mux.HandleFunc("GET /register", s.handleRegister)
 	mux.HandleFunc("POST /register", s.handleRegisterPost)
 	mux.HandleFunc("GET /verify", s.handleVerify)
+	mux.HandleFunc("GET /refresh", s.handleRefresh)
+	mux.HandleFunc("POST /refresh", s.handleRefreshPost)
 
 	// Rejects cross-site POST/PUT/DELETE (CSRF, including login CSRF) based on
 	// the browser-set Sec-Fetch-Site / Origin headers. GETs are not checked.
@@ -121,7 +123,7 @@ func (s *HttpInboundPort) handleLoginPost(w http.ResponseWriter, r *http.Request
 	refreshTokenCookie := http.Cookie{
 		Name:     "refresh_token",
 		Value:    loginResult.RefreshToken,
-		Path:     "/",
+		Path:     fmt.Sprintf("/realm/%s/refresh", s.svc.RealmID),
 		HttpOnly: true,
 		Secure:   s.cfg.SecureCookies,
 		SameSite: http.SameSiteLaxMode, // not sent on cross-site POSTs
@@ -179,23 +181,19 @@ func (s *HttpInboundPort) handleRegisterPost(w http.ResponseWriter, r *http.Requ
 	}
 
 	http.Redirect(w, r, "/login", http.StatusSeeOther)
-
 }
 
-// Stub: always authenticates. Replace with real token validation later.
-// forwardAuth always calls this with GET; the original method is in X-Forwarded-Method.
 func (s *HttpInboundPort) handleVerify(w http.ResponseWriter, r *http.Request) {
-	// CrossOriginProtection skips GETs, so the forwarded request is checked here:
-	// this covers every route behind auth-middleware.
+
 	if s.isCrossSiteWrite(r) {
 		http.Error(w, "forbidden", http.StatusForbidden)
 		return
 	}
 
 	ctx := r.Context()
-	cookie, err := r.Cookie("auth")
+	access_token, err := r.Cookie("access_token")
 
-	if err != nil || cookie.Value != "1234" {
+	if err != nil {
 		switch {
 		case errors.Is(err, http.ErrNoCookie):
 			originalUri := r.Header.Get("X-Forwarded-Uri")
@@ -204,7 +202,6 @@ func (s *HttpInboundPort) handleVerify(w http.ResponseWriter, r *http.Request) {
 				originalUri = r.URL.RequestURI()
 				log.Printf("RequestURI: %s\n", originalUri)
 			}
-
 			state := generateRandomStateToken()
 
 			if err := s.store.SetState(ctx, state, originalUri, 5*time.Minute); err != nil {
@@ -212,14 +209,112 @@ func (s *HttpInboundPort) handleVerify(w http.ResponseWriter, r *http.Request) {
 				http.Error(w, "server error", http.StatusInternalServerError)
 				return
 			}
-			http.Redirect(w, r, fmt.Sprintf("http://%s/login?state=%s", s.cfg.Domain, state), http.StatusMovedPermanently)
+			http.Redirect(w, r, fmt.Sprintf("http://%s/login?state=%s", s.cfg.Domain, state), http.StatusFound)
+			return
 		default:
 			log.Println(err)
 			http.Error(w, "server error", http.StatusInternalServerError)
 		}
 	} else {
-		fmt.Fprintf(w, "cookie: %s", cookie.Value)
+		verifyResult, err := s.svc.Verify(ctx, access_token.Value)
+		if err != nil {
+			originalUri := r.Header.Get("X-Forwarded-Uri")
+			log.Printf("X-Forwarded-Uri: %s\n", originalUri)
+			if originalUri == "" {
+				originalUri = r.URL.RequestURI()
+				log.Printf("RequestURI: %s\n", originalUri)
+			}
+			log.Printf("verify token: %v\n", err)
+			state := generateRandomStateToken()
+
+			if err := s.store.SetState(ctx, state, originalUri, 5*time.Minute); err != nil {
+				log.Println(err)
+				http.Error(w, "server error", http.StatusInternalServerError)
+				return
+			}
+			// 302, not 301: browsers cache a 301 for the protected URL itself.
+			http.Redirect(w, r, fmt.Sprintf("http://%s/realm/%s/refresh?state=%s", s.cfg.Domain, verifyResult.RefreshRealm, url.QueryEscape(state)), http.StatusFound)
+			return
+		}
+		fmt.Fprintf(w, "cookie: %s", access_token.Value)
 	}
+}
+
+type refreshPage struct {
+	State     string
+	ActionUrl string
+}
+
+// handleRefresh renders the "session expired" page. Its button POSTs to
+// /refresh, so a new access token is only issued by a same-origin form
+// (CrossOriginProtection rejects cross-site POSTs).
+func (s *HttpInboundPort) handleRefresh(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	data := refreshPage{
+		State: r.URL.Query().Get("state"),
+		// The browser-side path: nginx strips /realm/<id> before it reaches us.
+		ActionUrl: fmt.Sprintf("/realm/%s/refresh", s.cfg.RealmID),
+	}
+	if err := s.tpl.ExecuteTemplate(w, "refresh.html", data); err != nil {
+		log.Printf("render refresh: %v", err)
+		http.Error(w, "server error", http.StatusInternalServerError)
+	}
+}
+
+// the refresh happens on the already correct realm because the /verify redirect should have done it successfully.
+func (s *HttpInboundPort) handleRefreshPost(w http.ResponseWriter, r *http.Request) {
+	if s.isCrossSiteWrite(r) {
+		http.Error(w, "forbidden", http.StatusForbidden)
+		return
+	}
+
+	if err := r.ParseForm(); err != nil {
+		log.Printf("parse form: %v\n", err)
+		http.Error(w, "bad request", http.StatusBadRequest)
+		return
+	}
+
+	ctx := r.Context()
+	state := r.FormValue("state")
+	loginUrl := fmt.Sprintf("http://%s/realm/%s/login?state=%s", s.cfg.Domain, s.cfg.RealmID, url.QueryEscape(state))
+
+	refresh_token, err := r.Cookie("refresh_token")
+	if err != nil {
+		// No refresh cookie (expired or never set): only a new login helps.
+		http.Redirect(w, r, loginUrl, http.StatusSeeOther)
+		return
+	}
+
+	refreshResult, err := s.svc.Refresh(ctx, refresh_token.Value)
+	if err != nil {
+		log.Printf("refresh token: %v\n", err)
+		// issue login redirect to the realm's login page, keeping the state for the original request.
+		http.Redirect(w, r, loginUrl, http.StatusSeeOther)
+		return
+	} else {
+		// If the refresh is successful, we can now use the new access token.
+		accessTokenCookie := http.Cookie{
+			Name:     "access_token",
+			Value:    refreshResult.NewAccessToken,
+			Path:     "/",
+			HttpOnly: true,
+			Secure:   s.cfg.SecureCookies,
+			SameSite: http.SameSiteLaxMode, // not sent on cross-site POSTs
+		}
+		http.SetCookie(w, &accessTokenCookie)
+
+		val, err := s.store.GetState(ctx, state)
+
+		if err != nil {
+			log.Printf("redis error: %v\n", err)
+			log.Printf("Redis key not found")
+			val = ""
+		}
+
+		http.Redirect(w, r, fmt.Sprintf("http://%s%s", s.cfg.Domain, val), http.StatusSeeOther)
+		return
+	}
+
 }
 
 // isCrossSiteWrite reports whether the original (forwarded) request is a

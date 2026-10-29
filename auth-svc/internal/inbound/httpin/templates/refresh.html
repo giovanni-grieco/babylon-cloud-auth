@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Session expired</title>
+</head>
+<body>
+  <main>
+    <h1>Your session has expired</h1>
+    <p>Continue to get a new access token and go back to where you were.</p>
+    <form method="post" action="{{ .ActionUrl }}">
+      <input type="hidden" name="state" value="{{ .State }}">
+      <button type="submit" autofocus>Continue session</button>
+    </form>
+  </main>
+</body>
+</html>

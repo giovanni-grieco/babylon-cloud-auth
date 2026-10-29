@@ -208,6 +208,13 @@ services:
     environment:
       - CONSUL_ADDR=consul
       - REALM_ID=dc-1
+      - JWT_PUBLIC_KEY_PATH=/etc/keys/public
+      - JWT_PRIVATE_KEY_PATH=/run/secrets/private_key
+    secrets:
+      - source: dc1_private_key
+        target: private_key
+    volumes:
+      - ${HOME}/keys/public:/etc/keys/public:ro
     networks:
       edge-net:
         aliases:
@@ -255,6 +262,13 @@ services:
     environment:
       - CONSUL_ADDR=consul
       - REALM_ID=dc-2
+      - JWT_PUBLIC_KEY_PATH=/etc/keys/public
+      - JWT_PRIVATE_KEY_PATH=/run/secrets/private_key
+    secrets:
+      - source: dc2_private_key
+        target: private_key
+    volumes:
+      - ${HOME}/keys/public:/etc/keys/public:ro
     networks:
       edge-net:
           aliases:
@@ -349,3 +363,9 @@ networks:
   
   message-net:
     driver: bridge
+
+secrets:
+  dc1_private_key:
+    file: ${HOME}/keys/private/dc1/dc1.pem
+  dc2_private_key:
+    file: ${HOME}/keys/private/dc2/dc2.pem

@@ -7,17 +7,21 @@ import (
 	"auth-svc/internal/service"
 	"auth-svc/internal/store"
 	"context"
+	"crypto/ed25519"
 	"errors"
 	"fmt"
 	"log"
 	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
+	"strings"
 	"syscall"
 	"time"
 	_ "time/tzdata" // Embeds the IANA time zone database
 	"uuid"
 
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/nats-io/nats.go"
 	"github.com/nats-io/nats.go/jetstream"
 )
@@ -27,6 +31,51 @@ const (
 	servicePort = 8080
 )
 
+// loadPublicKeys parses every "<keyID>.pub.pem" file in dir, keyed by keyID.
+// Anything else in the folder (e.g. macOS .DS_Store) is skipped.
+func loadPublicKeys(dir string) (map[string]ed25519.PublicKey, error) {
+	files, err := os.ReadDir(dir)
+	if err != nil {
+		return nil, fmt.Errorf("read public keys dir: %w", err)
+	}
+
+	keys := make(map[string]ed25519.PublicKey)
+	for _, file := range files {
+		keyID, ok := strings.CutSuffix(file.Name(), ".pub.pem")
+		if file.IsDir() || !ok {
+			continue
+		}
+
+		keyPath := filepath.Join(dir, file.Name())
+		pemBytes, err := os.ReadFile(keyPath)
+		if err != nil {
+			return nil, fmt.Errorf("read public key %s: %w", keyPath, err)
+		}
+		key, err := jwt.ParseEdPublicKeyFromPEM(pemBytes)
+		if err != nil {
+			return nil, fmt.Errorf("parse public key %s: %w", keyPath, err)
+		}
+		keys[keyID] = key.(ed25519.PublicKey)
+	}
+
+	if len(keys) == 0 {
+		return nil, fmt.Errorf("no *.pub.pem files in %s", dir)
+	}
+	return keys, nil
+}
+
+func loadPrivateKey(path string) (ed25519.PrivateKey, error) {
+	pemBytes, err := os.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("read private key %s: %w", path, err)
+	}
+	key, err := jwt.ParseEdPrivateKeyFromPEM(pemBytes)
+	if err != nil {
+		return nil, fmt.Errorf("parse private key %s: %w", path, err)
+	}
+	return key.(ed25519.PrivateKey), nil
+}
+
 func main() {
 
 	serviceUniqueId := uuid.New().String()
@@ -34,6 +83,31 @@ func main() {
 	realmID := os.Getenv("REALM_ID")
 	if realmID == "" {
 		log.Fatal("REALM_ID must be set")
+	}
+
+	privateKeyPath := os.Getenv("JWT_PRIVATE_KEY_PATH")
+	if privateKeyPath == "" {
+		log.Fatal("JWT_PRIVATE_KEY_PATH must be set")
+	}
+
+	publicKeysPath := os.Getenv("JWT_PUBLIC_KEY_PATH")
+	if publicKeysPath == "" {
+		log.Fatal("JWT_PUBLIC_KEY_PATH must be set")
+	}
+
+	publicKeys, err := loadPublicKeys(publicKeysPath)
+	if err != nil {
+		log.Fatalf("failed to load public keys: %v", err)
+	}
+
+	privateKey, err := loadPrivateKey(privateKeyPath)
+	if err != nil {
+		log.Fatalf("failed to load private key: %v", err)
+	}
+
+	// we check if exists a public key for this realm and if it matches the private key, otherwise we panic
+	if pub, ok := publicKeys[realmID]; !ok || !pub.Equal(privateKey.Public()) {
+		log.Fatalf("public key %q missing or not matching the private key", realmID)
 	}
 
 	ctx := context.Background()
@@ -83,7 +157,7 @@ func main() {
 		Js: js,
 	}
 
-	authSvc := service.NewAuthService(serviceUniqueId, realmID, postgresStore, postgresStore, natsOutboundClient)
+	authSvc := service.NewAuthService(serviceUniqueId, realmID, postgresStore, postgresStore, natsOutboundClient, publicKeys, privateKey)
 
 	// Backfill the stream with every user in this realm. Async so the HTTP
 	// server isn't held up.
@@ -101,6 +175,7 @@ func main() {
 	httpInboundPort := httpin.New(
 		httpin.HttpInboundPortConfig{
 			Domain:        envOr("AUTH_DOMAIN", "localhost"),
+			RealmID:       realmID,
 			SecureCookies: envOr("COOKIE_SECURE", "false") == "true",
 		},
 		authSvc,
