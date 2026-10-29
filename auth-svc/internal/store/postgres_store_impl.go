@@ -93,12 +93,11 @@ func (s *PostgresStore) CreateUser(ctx context.Context, user domain.User) error 
 		Email:        user.Email,
 		PasswordHash: user.PasswordHash,
 		Salt:         user.Salt,
+		Role:         user.Role,
 	}
 	if err := s.db.WithContext(ctx).Create(&rec).Error; err != nil {
 		return fmt.Errorf("create user %q: %w", user.Username, err)
 	}
-
-	user.ID = rec.ID
 	return nil
 }
 
@@ -112,6 +111,7 @@ func (s *PostgresStore) UpdateUser(ctx context.Context, user domain.User) error 
 			"email":         user.Email,
 			"password_hash": user.PasswordHash,
 			"salt":          user.Salt,
+			"role":          user.Role,
 		})
 	if result.Error != nil {
 		return fmt.Errorf("update user %q: %w", user.Username, result.Error)
@@ -158,22 +158,73 @@ func (s *PostgresStore) ForEachUsername(ctx context.Context, fn func(username st
 	return nil
 }
 
+func (s *PostgresStore) CreateSession(ctx context.Context, session domain.Session) error {
+	rec := sessionRecord{
+		ID:           session.ID,
+		UserID:       session.UserID,
+		RefreshToken: session.RefreshToken,
+		ExpiresAt:    session.ExpiresAt,
+	}
+	if err := s.db.WithContext(ctx).Create(&rec).Error; err != nil {
+		return fmt.Errorf("create session for user %d: %w", session.UserID, err)
+	}
 
-
-func (s *PostgresStore) CreateSession(ctx context.Context, session domain.Session) error{
-
+	return nil
 }
-func (s *PostgresStore) GetSession(ctx context.Context, id uint64) (domain.Session, error){
 
+func (s *PostgresStore) GetSession(ctx context.Context, id uint64) (domain.Session, error) {
+	var rec sessionRecord
+
+	err := s.db.WithContext(ctx).Where("id = ?", id).First(&rec).Error
+	switch {
+	case errors.Is(err, gorm.ErrRecordNotFound):
+		return domain.Session{}, ErrSessionNotFound
+	case err != nil:
+		return domain.Session{}, fmt.Errorf("get session %d: %w", id, err)
+	}
+
+	return rec.ToDomain(), nil
 }
-func (s *PostgresStore) GetSessionByUserID(ctx context.Context, userID uint64) (domain.Session, error)
-{
 
+// GetSessionByUserID returns the user's most recent session, since a user can
+// have several active at once.
+func (s *PostgresStore) GetSessionByUserID(ctx context.Context, userID uint64) (domain.Session, error) {
+	var rec sessionRecord
+
+	err := s.db.WithContext(ctx).Where("user_id = ?", userID).Order("id DESC").First(&rec).Error
+	switch {
+	case errors.Is(err, gorm.ErrRecordNotFound):
+		return domain.Session{}, ErrSessionNotFound
+	case err != nil:
+		return domain.Session{}, fmt.Errorf("get session by user id %d: %w", userID, err)
+	}
+
+	return rec.ToDomain(), nil
 }
-func (s *PostgresStore) GetSessionByRefreshToken(ctx context.Context, refreshToken string) (domain.Session, error)
-{
 
+func (s *PostgresStore) GetSessionByRefreshToken(ctx context.Context, refreshToken string) (domain.Session, error) {
+	var rec sessionRecord
+
+	err := s.db.WithContext(ctx).Where("refresh_token = ?", refreshToken).First(&rec).Error
+	switch {
+	case errors.Is(err, gorm.ErrRecordNotFound):
+		return domain.Session{}, ErrSessionNotFound
+	case err != nil:
+		// The token is a secret: keep it out of the error.
+		return domain.Session{}, fmt.Errorf("get session by refresh token: %w", err)
+	}
+
+	return rec.ToDomain(), nil
 }
-func (s *PostgresStore) DeleteSession(ctx context.Context, id uint64) error{
 
+func (s *PostgresStore) DeleteSession(ctx context.Context, id uint64) error {
+	result := s.db.WithContext(ctx).Where("id = ?", id).Delete(&sessionRecord{})
+	if result.Error != nil {
+		return fmt.Errorf("delete session %d: %w", id, result.Error)
+	}
+	if result.RowsAffected == 0 {
+		return ErrSessionNotFound
+	}
+
+	return nil
 }

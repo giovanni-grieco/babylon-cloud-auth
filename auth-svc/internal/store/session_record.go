@@ -9,7 +9,7 @@ type sessionRecord struct {
 	ID           uint64     `gorm:"column:id;primaryKey;autoIncrement"`
 	UserID       uint64     `gorm:"column:user_id;index;not null;"`
 	UserRecord   userRecord `gorm:"foreignKey:UserID;constraint:OnDelete:CASCADE"`
-	RefreshToken string     `gorm:"column:refresh_token;not null"`
+	RefreshToken string     `gorm:"column:refresh_token;uniqueIndex;not null"`
 	ExpiresAt    time.Time  `gorm:"column:expires_at;not null"`
 }
 

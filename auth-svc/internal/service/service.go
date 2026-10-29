@@ -1,8 +1,8 @@
 package service
 
 import (
-	"auth-svc/internal/utils"
 	"common/domain"
+	"common/utils"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -29,21 +29,52 @@ func NewAuthService(SvcName string, realmID string, userStore UserStore, session
 	}
 }
 
-func (s *AuthService) Verify(ctx context.Context, cookie string) bool {
-	return cookie == "auth:1234"
+type VerifyResult struct {
+	NewAccessToken  string
+	NewAccessExpiry time.Time
 }
 
-func (s *AuthService) Login(ctx context.Context, username, password string) error {
+func (s *AuthService) Verify(ctx context.Context, cookie string) bool {
+	return true
+}
+
+type LoginResult struct {
+	AccessToken   string
+	AccessExpiry  time.Time
+	RefreshToken  string
+	RefreshExpiry time.Time
+}
+
+func (s *AuthService) Login(ctx context.Context, username, password string) (LoginResult, error) {
 	user, err := s.UserStore.GetUser(ctx, username)
 	if err != nil {
-		return fmt.Errorf("get user: %w", err)
+		return LoginResult{}, fmt.Errorf("get user: %w", err)
 	}
 
 	if err := s.Argon2idHash.Compare(user.PasswordHash, user.Salt, password); err != nil {
-		return fmt.Errorf("invalid username or password")
+		return LoginResult{}, fmt.Errorf("invalid username or password")
 	}
 
-	return nil
+	randomBytes, err := utils.GenerateRandomSecret(32)
+	if err != nil {
+		return LoginResult{}, fmt.Errorf("generate random secret: %w", err)
+	}
+
+	randomString := fmt.Sprintf("%x", randomBytes)
+
+	newSession := domain.Session{
+		UserID:       user.ID,
+		RefreshToken: randomString,
+		ExpiresAt:    time.Now().Add(24 * time.Hour),
+	}
+
+	if err := s.SessionStore.CreateSession(ctx, newSession); err != nil {
+		return LoginResult{}, fmt.Errorf("create session: %w", err)
+	}
+
+	result := LoginResult{}
+
+	return result, nil
 }
 
 func (s *AuthService) Register(

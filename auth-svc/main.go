@@ -83,7 +83,7 @@ func main() {
 		Js: js,
 	}
 
-	authSvc := service.NewAuthService(serviceUniqueId, realmID, postgresStore, redisStore, natsOutboundClient)
+	authSvc := service.NewAuthService(serviceUniqueId, realmID, postgresStore, postgresStore, natsOutboundClient)
 
 	// Backfill the stream with every user in this realm. Async so the HTTP
 	// server isn't held up.

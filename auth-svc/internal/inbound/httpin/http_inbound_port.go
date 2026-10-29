@@ -95,7 +95,8 @@ func (s *HttpInboundPort) handleLoginPost(w http.ResponseWriter, r *http.Request
 	formPass := r.FormValue("password")
 	state := r.FormValue("state")
 
-	if err := s.svc.Login(ctx, formUser, formPass); err != nil {
+	loginResult, err := s.svc.Login(ctx, formUser, formPass)
+	if err != nil {
 		// Back to this realm's login page, keeping the username for the retry.
 		q := url.Values{}
 		q.Set("error", "invalid username or password")
@@ -107,15 +108,25 @@ func (s *HttpInboundPort) handleLoginPost(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	cookie := http.Cookie{
-		Name:     "auth",
-		Value:    "1234",
+	accessTokenCookie := http.Cookie{
+		Name:     "access_token",
+		Value:    loginResult.AccessToken,
 		Path:     "/",
 		HttpOnly: true,
 		Secure:   s.cfg.SecureCookies,
 		SameSite: http.SameSiteLaxMode, // not sent on cross-site POSTs
 	}
-	http.SetCookie(w, &cookie)
+	http.SetCookie(w, &accessTokenCookie)
+
+	refreshTokenCookie := http.Cookie{
+		Name:     "refresh_token",
+		Value:    loginResult.RefreshToken,
+		Path:     "/",
+		HttpOnly: true,
+		Secure:   s.cfg.SecureCookies,
+		SameSite: http.SameSiteLaxMode, // not sent on cross-site POSTs
+	}
+	http.SetCookie(w, &refreshTokenCookie)
 
 	val, err := s.store.GetState(ctx, state)
 
