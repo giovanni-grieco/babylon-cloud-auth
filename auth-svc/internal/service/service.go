@@ -70,6 +70,7 @@ func (s *AuthService) Register(
 		Email:        email,
 		PasswordHash: hashAndSalt.Hash,
 		Salt:         hashAndSalt.Salt,
+		Role:         domain.RoleUser,
 	}
 
 	if err := s.UserStore.CreateUser(ctx, newUser); err != nil {

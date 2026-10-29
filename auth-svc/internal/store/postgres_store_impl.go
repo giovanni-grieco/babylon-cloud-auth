@@ -16,6 +16,7 @@ var ErrUserNotFound = errors.New("user not found")
 
 // Compile-time proof that PostgresUserStore implements the user port.
 var _ service.UserStore = (*PostgresStore)(nil)
+var _ service.SessionStore = (*PostgresStore)(nil)
 
 type PostgresStoreConfig struct {
 	Host     string
@@ -50,8 +51,8 @@ func NewPostgresStoreFromDB(db *gorm.DB) *PostgresStore {
 
 // Migrate creates or updates the users table. Call it once at startup.
 func (s *PostgresStore) Migrate(ctx context.Context) error {
-	if err := s.db.WithContext(ctx).AutoMigrate(&userRecord{}); err != nil {
-		return fmt.Errorf("migrate users table: %w", err)
+	if err := s.db.WithContext(ctx).AutoMigrate(&userRecord{}, &sessionRecord{}); err != nil {
+		return fmt.Errorf("migrate: %w", err)
 	}
 	return nil
 }
@@ -155,4 +156,24 @@ func (s *PostgresStore) ForEachUsername(ctx context.Context, fn func(username st
 	}
 
 	return nil
+}
+
+
+
+func (s *PostgresStore) CreateSession(ctx context.Context, session domain.Session) error{
+
+}
+func (s *PostgresStore) GetSession(ctx context.Context, id uint64) (domain.Session, error){
+
+}
+func (s *PostgresStore) GetSessionByUserID(ctx context.Context, userID uint64) (domain.Session, error)
+{
+
+}
+func (s *PostgresStore) GetSessionByRefreshToken(ctx context.Context, refreshToken string) (domain.Session, error)
+{
+
+}
+func (s *PostgresStore) DeleteSession(ctx context.Context, id uint64) error{
+
 }

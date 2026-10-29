@@ -16,7 +16,9 @@ type UserStore interface {
 }
 
 type SessionStore interface {
-	CreateSession(ctx context.Context, sessionID string, userID uint64) error
-	GetSession(ctx context.Context, sessionID string) (uint64, error)
-	DeleteSession(ctx context.Context, sessionID string) error
+	CreateSession(ctx context.Context, session domain.Session) error
+	GetSession(ctx context.Context, id uint64) (domain.Session, error)
+	GetSessionByUserID(ctx context.Context, userID uint64) (domain.Session, error)
+	GetSessionByRefreshToken(ctx context.Context, refreshToken string) (domain.Session, error)
+	DeleteSession(ctx context.Context, id uint64) error
 }
