@@ -1,5 +1,6 @@
 - chiedere a max cosa si intende per OAuth2.0 | fatto | prima il token era opaco e non conteneva informazioni. ogni volta che si voleva conoscere l'ID dell'utente si doveva interrogare il DB con questa token identificativo. Adesso invece l'ID dell'utente è direttamente contenuto nel JWT. Quindi era per motivi di prestazioni (troppe chiamate concorrenti al DB) e per omologazione (compliance)
-- implementazione JWT completa (access token, refresh token, firma con chiavi asimmetriche)
-- Implementazione claim in JWT per due servizi (tipo a e b)
+- implementazione JWT completa (access token, refresh token, firma con chiavi asimmetriche) -- FATTO
+- Implementazione claim in JWT per due servizi (tipo a e b) 
 - Creare servizio A e B per verificare i diversi permessi utente. Utente 1 può usare solo il servizio A ma non il B.
 - implementazione di bloom filter per home-realm-discovery
+- Implementare sistema di identificazione utenti con chiavi non progressive ma comunque ordinabili (uuid potrebbe essere utile in qualche modo)
