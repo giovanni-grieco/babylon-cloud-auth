@@ -15,7 +15,7 @@ import (
 
 const (
 	accessTokenTTL  = 30 * time.Second
-	refreshTokenTTL = 48 * time.Hour
+	refreshTokenTTL = 60 * time.Second
 )
 
 type AuthService struct {
