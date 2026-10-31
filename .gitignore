@@ -2,5 +2,7 @@
 .env
 *auth-db*/
 *auth-kv*/
+keycloak-db-data/
+keycloak-dc-*-db-data/
 state-kv/
 nats/

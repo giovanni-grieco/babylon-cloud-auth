@@ -3,18 +3,29 @@ set -e
 
 cd "$(dirname "$0")"
 
-# Create local secrets on the first run. Once Keycloak's database exists, its
-# password is fixed, so reset with `docker compose down -v` if .env is deleted.
-if [ ! -f .env ]; then
-    umask 077
-    {
-        echo "KC_DB_PASSWORD=$(openssl rand -hex 24)"
-        echo "KC_ADMIN_USERNAME=$(openssl rand -hex 10)"
-        echo "KC_ADMIN_PASSWORD=$(openssl rand -hex 12)"
-        echo "OIDC_CLIENT_SECRET=$(openssl rand -hex 32)"
-        echo "OAUTH2_PROXY_COOKIE_SECRET=$(openssl rand -hex 16)"
-    } > .env
-    echo "Created .env; the Keycloak admin password is in there."
-fi
+# Add a random secret to .env unless it's already there, so an existing .env
+# keeps its values. A Keycloak database and admin account are fixed once created.
+add_secret() {
+    grep -q "^$1=" .env || echo "$1=$(openssl rand -hex "$2")" >> .env
+}
+
+umask 077
+touch .env
+
+add_secret KC_DB_PASSWORD 24
+add_secret KC_ADMIN_USERNAME 10
+add_secret KC_ADMIN_PASSWORD 12
+add_secret OIDC_CLIENT_SECRET 32
+add_secret OAUTH2_PROXY_COOKIE_SECRET 16
+
+add_secret DC1_DB_PASSWORD 24
+add_secret DC1_ADMIN_USERNAME 10
+add_secret DC1_ADMIN_PASSWORD 12
+add_secret DC1_BROKER_SECRET 32
+
+add_secret DC2_DB_PASSWORD 24
+add_secret DC2_ADMIN_USERNAME 10
+add_secret DC2_ADMIN_PASSWORD 12
+add_secret DC2_BROKER_SECRET 32
 
 docker compose up -d --build --remove-orphans

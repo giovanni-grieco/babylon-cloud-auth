@@ -1,3 +1,37 @@
+x-keycloak-env: &keycloak-env
+  KC_DB: postgres
+  KC_DB_USERNAME: keycloak
+  KC_PROXY_HEADERS: xforwarded
+  KC_HEALTH_ENABLED: "true"
+
+x-keycloak-base: &keycloak-base
+  command: start-dev --import-realm # lab only; use `start` with HTTPS in production
+  healthcheck:
+    # The image has no curl, so talk to the management port through bash.
+    test:
+      - CMD-SHELL
+      - >-
+        exec 3<>/dev/tcp/127.0.0.1/9000 &&
+        printf 'GET /health/ready HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n' >&3 &&
+        grep -q '"UP"' <&3
+    interval: 10s
+    timeout: 5s
+    retries: 30
+    start_period: 30s
+
+x-keycloak-db-env: &keycloak-db-env
+  POSTGRES_USER: keycloak
+  POSTGRES_DB: keycloak
+  TZ: Europe/Rome
+
+x-keycloak-db-base: &keycloak-db-base
+  image: postgres:17
+  healthcheck:
+    test: ["CMD-SHELL", "pg_isready -U keycloak -d keycloak"]
+    interval: 5s
+    timeout: 5s
+    retries: 5
+
 services:
   # 0. LOAD BALANCER (public entrypoint)
   load-balancer:
@@ -13,41 +47,34 @@ services:
           # Containers resolve the issuer to nginx, exactly like the browser does,
           # so the token issuer URL is the same on both sides.
           - auth.babylon.test
+          - auth.dc-1.babylon.test
+          - auth.dc-2.babylon.test
     depends_on:
       - api-gateway-1
       - api-gateway-2
       - keycloak
+      - keycloak-dc-1
+      - keycloak-dc-2
 
-  # 1. IDENTITY PROVIDER
+  # 1. CENTRAL IDENTITY BROKER: the single login point. It holds no passwords or
+  #    profiles, and routes each email domain to the DC Keycloak that owns the user.
   keycloak:
-    image: quay.io/keycloak/keycloak:26.4.7
+    <<: *keycloak-base
+    build: ./keycloak/central
     container_name: keycloak
-    command: start-dev --import-realm # lab only; use `start` with HTTPS in production
     environment:
-      KC_DB: postgres
+      <<: *keycloak-env
       KC_DB_URL: jdbc:postgresql://keycloak-db:5432/keycloak
-      KC_DB_USERNAME: keycloak
       KC_DB_PASSWORD: ${KC_DB_PASSWORD:?run start.sh or copy .env.example to .env}
       KC_HOSTNAME: http://auth.babylon.test
-      KC_PROXY_HEADERS: xforwarded
-      KC_HEALTH_ENABLED: "true"
       KC_BOOTSTRAP_ADMIN_USERNAME: ${KC_ADMIN_USERNAME:?run start.sh or copy .env.example to .env}
       KC_BOOTSTRAP_ADMIN_PASSWORD: ${KC_ADMIN_PASSWORD:?run start.sh or copy .env.example to .env}
-      OIDC_CLIENT_SECRET: ${OIDC_CLIENT_SECRET:?run start.sh or copy .env.example to .env} # read by the realm import
+      # Read by the realm import
+      OIDC_CLIENT_SECRET: ${OIDC_CLIENT_SECRET:?run start.sh or copy .env.example to .env}
+      DC1_BROKER_SECRET: ${DC1_BROKER_SECRET:?run start.sh or copy .env.example to .env}
+      DC2_BROKER_SECRET: ${DC2_BROKER_SECRET:?run start.sh or copy .env.example to .env}
     volumes:
-      - ./keycloak/import:/opt/keycloak/data/import:ro
-    healthcheck:
-      # The image has no curl, so talk to the management port through bash.
-      test:
-        - CMD-SHELL
-        - >-
-          exec 3<>/dev/tcp/127.0.0.1/9000 &&
-          printf 'GET /health/ready HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n' >&3 &&
-          grep -q '"UP"' <&3
-      interval: 10s
-      timeout: 5s
-      retries: 30
-      start_period: 30s
+      - ./keycloak/central/import:/opt/keycloak/data/import:ro
     networks:
       - edge-net
       - keycloak-net
@@ -56,22 +83,80 @@ services:
         condition: service_healthy
 
   keycloak-db:
-    image: postgres:17
+    <<: *keycloak-db-base
     container_name: keycloak-db
     environment:
-      POSTGRES_USER: keycloak
+      <<: *keycloak-db-env
       POSTGRES_PASSWORD: ${KC_DB_PASSWORD:?run start.sh or copy .env.example to .env}
-      POSTGRES_DB: keycloak
-      TZ: Europe/Rome
     volumes:
       - ./keycloak-db-data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U keycloak -d keycloak"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
     networks:
       - keycloak-net
+
+  # 1a. DC IDENTITY PROVIDERS: each owns its users, on a database no other DC can reach.
+  keycloak-dc-1:
+    <<: *keycloak-base
+    image: quay.io/keycloak/keycloak:26.7.0
+    container_name: keycloak-dc-1
+    environment:
+      <<: *keycloak-env
+      KC_DB_URL: jdbc:postgresql://keycloak-dc-1-db:5432/keycloak
+      KC_DB_PASSWORD: ${DC1_DB_PASSWORD:?run start.sh or copy .env.example to .env}
+      KC_HOSTNAME: http://auth.dc-1.babylon.test
+      KC_BOOTSTRAP_ADMIN_USERNAME: ${DC1_ADMIN_USERNAME:?run start.sh or copy .env.example to .env}
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${DC1_ADMIN_PASSWORD:?run start.sh or copy .env.example to .env}
+      DC1_BROKER_SECRET: ${DC1_BROKER_SECRET:?run start.sh or copy .env.example to .env} # read by the realm import
+    volumes:
+      - ./keycloak/dc-1/import:/opt/keycloak/data/import:ro
+    networks:
+      - edge-net
+      - keycloak-dc-1-net
+    depends_on:
+      keycloak-dc-1-db:
+        condition: service_healthy
+
+  keycloak-dc-1-db:
+    <<: *keycloak-db-base
+    container_name: keycloak-dc-1-db
+    environment:
+      <<: *keycloak-db-env
+      POSTGRES_PASSWORD: ${DC1_DB_PASSWORD:?run start.sh or copy .env.example to .env}
+    volumes:
+      - ./keycloak-dc-1-db-data:/var/lib/postgresql/data
+    networks:
+      - keycloak-dc-1-net
+
+  keycloak-dc-2:
+    <<: *keycloak-base
+    image: quay.io/keycloak/keycloak:26.7.0
+    container_name: keycloak-dc-2
+    environment:
+      <<: *keycloak-env
+      KC_DB_URL: jdbc:postgresql://keycloak-dc-2-db:5432/keycloak
+      KC_DB_PASSWORD: ${DC2_DB_PASSWORD:?run start.sh or copy .env.example to .env}
+      KC_HOSTNAME: http://auth.dc-2.babylon.test
+      KC_BOOTSTRAP_ADMIN_USERNAME: ${DC2_ADMIN_USERNAME:?run start.sh or copy .env.example to .env}
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${DC2_ADMIN_PASSWORD:?run start.sh or copy .env.example to .env}
+      DC2_BROKER_SECRET: ${DC2_BROKER_SECRET:?run start.sh or copy .env.example to .env} # read by the realm import
+    volumes:
+      - ./keycloak/dc-2/import:/opt/keycloak/data/import:ro
+    networks:
+      - edge-net
+      - keycloak-dc-2-net
+    depends_on:
+      keycloak-dc-2-db:
+        condition: service_healthy
+
+  keycloak-dc-2-db:
+    <<: *keycloak-db-base
+    container_name: keycloak-dc-2-db
+    environment:
+      <<: *keycloak-db-env
+      POSTGRES_PASSWORD: ${DC2_DB_PASSWORD:?run start.sh or copy .env.example to .env}
+    volumes:
+      - ./keycloak-dc-2-db-data:/var/lib/postgresql/data
+    networks:
+      - keycloak-dc-2-net
 
   # 2. OIDC CLIENT FOR THE GATEWAYS (Traefik's forwardAuth target)
   oauth2-proxy:
@@ -86,7 +171,8 @@ services:
       - --redirect-url=http://babylon.test/oauth2/callback
       - --code-challenge-method=S256
       - --email-domain=*
-      - --insecure-oidc-allow-unverified-email=true # lab only; open registration has no SMTP
+      - --oidc-email-claim=sub # central tokens carry no email, by design
+      - --insecure-oidc-allow-unverified-email=true # there's no email_verified claim either
       - --skip-provider-button=true
       - --reverse-proxy=true
       - --upstream=static://202 # authenticated: answer forwardAuth without proxying anywhere
@@ -249,6 +335,12 @@ networks:
     driver: bridge
 
   keycloak-net:
+    driver: bridge
+
+  keycloak-dc-1-net:
+    driver: bridge
+
+  keycloak-dc-2-net:
     driver: bridge
 
   cluster-net-1:
