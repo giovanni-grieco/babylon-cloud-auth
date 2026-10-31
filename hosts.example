@@ -1,0 +1,12 @@
+# Reference for local development: add the babylon.test line to /etc/hosts.
+# Keep your existing localhost lines. This file isn't read automatically.
+#
+# Check it with: getent hosts babylon.test auth.babylon.test
+
+127.0.0.1   localhost localhost.localdomain
+::1         localhost localhost.localdomain
+
+# Babylon: nginx routes these names using the HTTP Host header
+#   babylon.test       mock services, through the API gateways
+#   auth.babylon.test  Keycloak (login pages and admin console)
+127.0.0.1   babylon.test auth.babylon.test

@@ -3,48 +3,58 @@ An authentication architecture for distributed system running with a mock cluste
 
 # Requirements
 - Docker
+- These lines in `/etc/hosts`:
+  ```text
+  127.0.0.1   babylon.test auth.babylon.test
+  ```
 
 # Get Started
 
-Brief summary on how to run this architecture 
-
 ## Run
-To start the whole architecture run ```docker compose up -d --build``` or ```start.sh```
+Run ```./start.sh```. On the first run it generates the local secrets in `.env`, which `docker compose` needs.
 
-### HTTP request
-At "http://localhost:80" you can check the mock service answer to your HTTP GET request ;>
+Then open http://babylon.test. Keycloak takes a little while to start the first time.
+
+Test users (username / password):
+- `alice` / `alice`, in group `service-a`
+- `bob` / `bob`, in group `service-b`
+
+You can also register a new user from the login page.
 
 ## Stop
-To stop the whole architecture run ```docker compose down``` or ```stop.sh```
+To stop the whole architecture run ```docker compose down``` or ```stop.sh```.
+
+To also delete Keycloak's database, and re-import `keycloak/import/babylon-realm.json` on the next start, run ```docker compose down -v```.
 
 # Architecture
-The architecture is composed of multiple mock services, an auth service, API gateways, service registries and a load balancer.
+The architecture is composed of multiple mock services, an identity provider, API gateways, service registries and a load balancer.
 
 In particular, we have 2 clusters, each cluster has its own network. Inside each cluster there's exactly 1 Traefik API Gateway and exactly 1 Consul Service Registry. The API gateway service endpoints are updated at runtime by consulting the Service Registry.
 
 Exactly 2 mock services (mock-svc) exist for each cluster. They register on Consul at start-time and provide an health check every x-amount of seconds. When the process dies, they de-register from Consul.
 
-Exactly 1 auth service (auth-svc) exists per cluster. It self-registers with Consul under the service name `auth` and exposes a `/verify` endpoint consumed by Traefik's forward-auth middleware. Routing rules live declaratively in `traefik/dynamic.yml`: `mock-router` (protected by `auth-middleware`) and `auth-service-router` (host `auth.internal.corp`).
-
-On top of the 2 clusters, we have exactly 1 NGINX "edge" load balancer.
+On top of the 2 clusters, we have exactly 1 NGINX "edge" load balancer, 1 Keycloak instance with its Postgres database, and 1 oauth2-proxy instance shared by both gateways.
 
 ## Endpoints
-- mock-svc http://localhost & http://localhost/doOperation
-- auth-svc http://localhost/health & http://localhost/verify (with `Host: auth.internal.corp`)
+- mock-svc http://babylon.test (public) & http://babylon.test/doOperation (login required)
+- Keycloak http://auth.babylon.test; the admin console user is `admin`, with the password in `.env`
 - Traefik API-Gateway Cluster 1 http://localhost:8081
 - Traefik API-Gateway Cluster 2 http://localhost:8082
 - Consul Service Registry Cluster 1 http://localhost:8501
 - Consul Service Registry Cluster 2 http://localhost:8502
 
-## Communcations flow
-The web request reaches the edge loadbalancer. It chooses a cluster to serve said request via round robin policy.
+## Communications flow
+The web request reaches the edge load balancer, which routes on the `Host` header. `auth.babylon.test` goes to Keycloak, and everything else goes to a cluster's API Gateway, chosen by hashing the client address.
 
-Once the cluster is chosen, the request gets passed to the Cluster's API Gateway. At this point the gateway chooses which mock-svc instance is going to actually serve the answer. The policy here is once again round-robin.
-
-So 4 requests in a row would land on mock-svc-1-1 (cluster 1, instance 1), then mock-svc-2-1 (cluster 2, instance 1), then mock-svc-1-2 and finally mock-svc-2-2. 
+The gateway then chooses which mock-svc instance serves the answer, using round robin.
 
 # Authentication
-Requests to the mock service pass through Traefik's `auth-middleware`, which calls the auth service `/verify` endpoint. That endpoint is currently a stub (always returns 200 with `X-User-ID: anonymous`); real token validation (access/refresh JWT, signed by the auth service private key) is still to be implemented.
+Keycloak is the identity provider, configured by the `babylon` realm in `keycloak/import/babylon-realm.json`. This file is only imported when the realm doesn't exist yet. Customer organisations use Keycloak Organizations, and each can link its own SAML or OIDC identity provider.
 
+Protected routes use Traefik's `auth-middleware`, which calls oauth2-proxy on every request:
+- **Valid session:** oauth2-proxy answers 202, and Traefik passes `X-Auth-Request-User`, `X-Auth-Request-Preferred-Username`, `X-Auth-Request-Email` and `X-Auth-Request-Groups` to the service. Services must only be reachable through the gateway, because they trust these headers.
+- **No session:** oauth2-proxy redirects the browser to Keycloak. After login it stores the tokens in Redis (`state-kv`) and sets its `_oauth2_proxy` cookie.
 
-HOME Realm Discovery
+Access tokens last 5 minutes, and oauth2-proxy refreshes them after 4 minutes on the next request. Keycloak's SSO session ends after 30 idle minutes or 10 hours.
+
+The logout link goes to `/oauth2/sign_out`, which ends the oauth2-proxy session, then redirects to Keycloak's logout endpoint to end the SSO session.

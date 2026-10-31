@@ -1,0 +1,83 @@
+{
+  "realm": "babylon",
+  "enabled": true,
+  "sslRequired": "none",
+  "organizationsEnabled": true,
+  "registrationAllowed": true,
+  "registrationEmailAsUsername": false,
+  "loginWithEmailAllowed": true,
+  "duplicateEmailsAllowed": false,
+  "accessTokenLifespan": 300,
+  "ssoSessionIdleTimeout": 1800,
+  "ssoSessionMaxLifespan": 36000,
+  "groups": [
+    { "name": "service-a" },
+    { "name": "service-b" }
+  ],
+  "clients": [
+    {
+      "clientId": "gateway",
+      "name": "API gateway (oauth2-proxy)",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "secret": "${OIDC_CLIENT_SECRET}",
+      "standardFlowEnabled": true,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+      "redirectUris": ["http://babylon.test/oauth2/callback"],
+      "webOrigins": [],
+      "attributes": {
+        "pkce.code.challenge.method": "S256",
+        "post.logout.redirect.uris": "http://babylon.test/"
+      },
+      "protocolMappers": [
+        {
+          "name": "gateway-audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "config": {
+            "included.client.audience": "gateway",
+            "id.token.claim": "true",
+            "access.token.claim": "true"
+          }
+        },
+        {
+          "name": "groups",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-group-membership-mapper",
+          "config": {
+            "claim.name": "groups",
+            "full.path": "false",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "userinfo.token.claim": "true"
+          }
+        }
+      ]
+    }
+  ],
+  "users": [
+    {
+      "username": "alice",
+      "email": "alice@babylon.test",
+      "firstName": "Alice",
+      "lastName": "Test",
+      "enabled": true,
+      "emailVerified": true,
+      "groups": ["service-a"],
+      "credentials": [{ "type": "password", "value": "alice", "temporary": false }]
+    },
+    {
+      "username": "bob",
+      "email": "bob@babylon.test",
+      "firstName": "Bob",
+      "lastName": "Test",
+      "enabled": true,
+      "emailVerified": true,
+      "groups": ["service-b"],
+      "credentials": [{ "type": "password", "value": "bob", "temporary": false }]
+    }
+  ]
+}

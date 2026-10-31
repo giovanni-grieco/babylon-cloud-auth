@@ -7,7 +7,7 @@ import threading
 import time
 
 import requests
-from flask import Flask, render_template
+from flask import Flask, render_template, request
 
 app = Flask(__name__)
 app.config["TEMPLATES_AUTO_RELOAD"] = True
@@ -106,7 +106,15 @@ def hello_world():
 
 @app.route("/doOperation")
 def doOperation():
-    return render_template("doOperation.html", instance_id=instance_id)
+    # Set by Traefik from oauth2-proxy's answer; this route is behind auth-middleware.
+    return render_template(
+        "doOperation.html",
+        instance_id=instance_id,
+        user_id=request.headers.get("X-Auth-Request-User", ""),
+        username=request.headers.get("X-Auth-Request-Preferred-Username", ""),
+        email=request.headers.get("X-Auth-Request-Email", ""),
+        groups=request.headers.get("X-Auth-Request-Groups", ""),
+    )
 
 
 if __name__ == "__main__":

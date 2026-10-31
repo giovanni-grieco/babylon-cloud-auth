@@ -2,9 +2,12 @@ http:
   middlewares:
     auth-middleware:
       forwardAuth:
-        address: "http://auth-svc:8080/verify" # Points to your Go auth service container/address
+        address: "http://oauth2-proxy:4180/"
         authResponseHeaders:
-          - "X-User-ID"             # Injects this header from your auth-svc's 200 OK response down to the backend
+          - "X-Auth-Request-User"
+          - "X-Auth-Request-Preferred-Username"
+          - "X-Auth-Request-Email"
+          - "X-Auth-Request-Groups"
 
   routers:
     mock-router-public:
@@ -17,8 +20,14 @@ http:
       rule: "PathPrefix(`/doOperation`)"
       middlewares: [auth-middleware]
       service: mock@consulcatalog
-    
-    auth-service-router:
+
+    oauth2-router:
       entryPoints: [web]
-      rule: "PathPrefix(`/login`) || PathPrefix(`/register`) || PathPrefix(`/refresh`)"
-      service: "auth@consulcatalog"
+      rule: "PathPrefix(`/oauth2/`)"
+      service: oauth2-proxy
+
+  services:
+    oauth2-proxy:
+      loadBalancer:
+        servers:
+          - url: "http://oauth2-proxy:4180"
