@@ -32,6 +32,41 @@ x-keycloak-db-base: &keycloak-db-base
     timeout: 5s
     retries: 5
 
+x-oauth2-proxy-base: &oauth2-proxy-base
+  image: quay.io/oauth2-proxy/oauth2-proxy:v7.12.0
+  restart: unless-stopped # retries OIDC discovery if the issuer isn't reachable yet
+  command:
+    - --http-address=0.0.0.0:4180
+    - --provider=keycloak-oidc
+    - --client-id=gateway
+    - --oidc-issuer-url=http://auth.babylon.test/realms/babylon
+    - --redirect-url=http://babylon.test/oauth2/callback
+    - --code-challenge-method=S256
+    - --email-domain=*
+    - --oidc-email-claim=sub # central tokens carry no email, by design
+    - --insecure-oidc-allow-unverified-email=true # there's no email_verified claim either
+    - --skip-provider-button=true
+    - --reverse-proxy=true
+    - --upstream=static://202 # authenticated: answer forwardAuth without proxying anywhere
+    - --set-xauthrequest=true
+    - --cookie-domain=.babylon.test
+    - --whitelist-domain=.babylon.test
+    - --cookie-secure=false # lab only; remove with HTTPS
+    - --cookie-refresh=4m # shorter than the 5 minute access token
+    - --cookie-expire=10h # matches Keycloak's SSO session max
+    - --session-store-type=redis
+    - --redis-connection-url=redis://state-kv:6379
+  environment:
+    OAUTH2_PROXY_CLIENT_SECRET: ${OIDC_CLIENT_SECRET:?run start.sh or copy .env.example to .env}
+    OAUTH2_PROXY_COOKIE_SECRET: ${OAUTH2_PROXY_COOKIE_SECRET:?run start.sh or copy .env.example to .env}
+  depends_on:
+    keycloak:
+      condition: service_healthy
+    load-balancer:
+      condition: service_started
+    state-kv:
+      condition: service_healthy
+
 services:
   # 0. LOAD BALANCER (public entrypoint)
   load-balancer:
@@ -158,46 +193,28 @@ services:
     networks:
       - keycloak-dc-2-net
 
-  # 2. OIDC CLIENT FOR THE GATEWAYS (Traefik's forwardAuth target)
-  oauth2-proxy:
-    image: quay.io/oauth2-proxy/oauth2-proxy:v7.12.0
-    container_name: oauth2-proxy
-    restart: unless-stopped # retries OIDC discovery if the issuer isn't reachable yet
-    command:
-      - --http-address=0.0.0.0:4180
-      - --provider=keycloak-oidc
-      - --client-id=gateway
-      - --oidc-issuer-url=http://auth.babylon.test/realms/babylon
-      - --redirect-url=http://babylon.test/oauth2/callback
-      - --code-challenge-method=S256
-      - --email-domain=*
-      - --oidc-email-claim=sub # central tokens carry no email, by design
-      - --insecure-oidc-allow-unverified-email=true # there's no email_verified claim either
-      - --skip-provider-button=true
-      - --reverse-proxy=true
-      - --upstream=static://202 # authenticated: answer forwardAuth without proxying anywhere
-      - --set-xauthrequest=true
-      - --cookie-domain=.babylon.test
-      - --whitelist-domain=.babylon.test
-      - --cookie-secure=false # lab only; remove with HTTPS
-      - --cookie-refresh=4m # shorter than the 5 minute access token
-      - --cookie-expire=10h # matches Keycloak's SSO session max
-      - --session-store-type=redis
-      - --redis-connection-url=redis://state-kv:6379
-    environment:
-      OAUTH2_PROXY_CLIENT_SECRET: ${OIDC_CLIENT_SECRET:?run start.sh or copy .env.example to .env}
-      OAUTH2_PROXY_COOKIE_SECRET: ${OAUTH2_PROXY_COOKIE_SECRET:?run start.sh or copy .env.example to .env}
+  # 2. OIDC CLIENT, ONE PER GATEWAY (Traefik's forwardAuth target)
+  #    The oauth2-proxy alias exists only on the cluster network, so each gateway
+  #    reaches its own instance. Don't add it to edge-net, where both gateways would see both.
+  oauth2-proxy-1:
+    <<: *oauth2-proxy-base
+    container_name: oauth2-proxy-1
     networks:
-      - edge-net
-    depends_on:
-      keycloak:
-        condition: service_healthy
-      load-balancer:
-        condition: service_started
-      state-kv:
-        condition: service_healthy
+      edge-net: # reaches Keycloak and Redis
+      cluster-net-1:
+        aliases:
+          - oauth2-proxy
 
-  # Holds oauth2-proxy sessions, shared by both gateways
+  oauth2-proxy-2:
+    <<: *oauth2-proxy-base
+    container_name: oauth2-proxy-2
+    networks:
+      edge-net: # reaches Keycloak and Redis
+      cluster-net-2:
+        aliases:
+          - oauth2-proxy
+
+  # Holds oauth2-proxy sessions, shared so that users stay logged in if they move between clusters
   state-kv:
     image: redis:latest
     container_name: state-kv

@@ -29,11 +29,11 @@ sudo rm -rf keycloak-db-data keycloak-dc-1-db-data keycloak-dc-2-db-data
 # Architecture
 The architecture is composed of multiple mock services, identity providers, API gateways, service registries and a load balancer.
 
-In particular, we have 2 clusters, each cluster has its own network. Inside each cluster there's exactly 1 Traefik API Gateway and exactly 1 Consul Service Registry. The API gateway service endpoints are updated at runtime by consulting the Service Registry.
+In particular, we have 2 clusters, each cluster has its own network. Inside each cluster there's exactly 1 Traefik API Gateway, exactly 1 oauth2-proxy and exactly 1 Consul Service Registry. Each gateway reaches its own oauth2-proxy through the `oauth2-proxy` alias on its cluster network. Both instances share the same cookie secret and Redis, so a session works on either cluster. The API gateway service endpoints are updated at runtime by consulting the Service Registry.
 
 Exactly 2 mock services (mock-svc) exist for each cluster. They register on Consul at start-time and provide an health check every x-amount of seconds. When the process dies, they de-register from Consul.
 
-On top of the 2 clusters, we have exactly 1 NGINX "edge" load balancer, 1 central Keycloak broker, 1 Keycloak per DC, and 1 oauth2-proxy instance shared by both gateways. Each Keycloak has its own Postgres database, on a private network that only that Keycloak can reach.
+On top of the 2 clusters, we have exactly 1 NGINX "edge" load balancer, 1 central Keycloak broker, and 1 Keycloak per DC. Each Keycloak has its own Postgres database, on a private network that only that Keycloak can reach.
 
 ## Endpoints
 - mock-svc http://babylon.test (public) & http://babylon.test/doOperation (login required)
