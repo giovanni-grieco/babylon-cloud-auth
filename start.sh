@@ -9,6 +9,7 @@ if [ ! -f .env ]; then
     umask 077
     {
         echo "KC_DB_PASSWORD=$(openssl rand -hex 24)"
+        echo "KC_ADMIN_USERNAME=$(openssl rand -hex 10)"
         echo "KC_ADMIN_PASSWORD=$(openssl rand -hex 12)"
         echo "OIDC_CLIENT_SECRET=$(openssl rand -hex 32)"
         echo "OAUTH2_PROXY_COOKIE_SECRET=$(openssl rand -hex 16)"
