@@ -54,8 +54,8 @@ x-oauth2-proxy-base: &oauth2-proxy-base
     - --cookie-secure=false # lab only; remove with HTTPS
     - --cookie-refresh=4m # shorter than the 5 minute access token
     - --cookie-expire=10h # matches Keycloak's SSO session max
-    - --session-store-type=redis
-    - --redis-connection-url=redis://state-kv:6379
+    #- --session-store-type=redis
+    #- --redis-connection-url=redis://state-kv:6379
   environment:
     OAUTH2_PROXY_CLIENT_SECRET: ${OIDC_CLIENT_SECRET:?run start.sh or copy .env.example to .env}
     OAUTH2_PROXY_COOKIE_SECRET: ${OAUTH2_PROXY_COOKIE_SECRET:?run start.sh or copy .env.example to .env}
@@ -64,8 +64,8 @@ x-oauth2-proxy-base: &oauth2-proxy-base
       condition: service_healthy
     load-balancer:
       condition: service_started
-    state-kv:
-      condition: service_healthy
+    #state-kv:
+      #condition: service_healthy
 
 services:
   # 0. LOAD BALANCER (public entrypoint)

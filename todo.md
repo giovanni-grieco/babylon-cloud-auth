@@ -4,3 +4,9 @@
 - Creare servizio A e B per verificare i diversi permessi utente. Utente 1 può usare solo il servizio A ma non il B.
 - implementazione di bloom filter per home-realm-discovery
 - Implementare sistema di identificazione utenti con chiavi non progressive ma comunque ordinabili (uuid potrebbe essere utile in qualche modo)
+
+==== NUOVO ====
+
+- Capire come fare correttamente il provisioning e unprovisioning tramite keycloak - cioè quando un'utente viene cancellato, dobbiamo in qualche modo de-allocare tutto per un certo servizio altrimenti rimane spazzatura.
+
+- Creare un plugin custom per keycloak per fare home-realm-discovery non basata su email ma su un hash dell'email e tramite bloom filter.

@@ -75,6 +75,9 @@
           "value": "alice",
           "temporary": false
         }
+      ],
+      "realmRoles": [
+        "default-roles-babylon"
       ]
     }
   ]
