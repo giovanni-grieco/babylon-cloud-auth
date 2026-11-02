@@ -7,6 +7,11 @@
 
 ==== NUOVO ====
 
-- Capire come fare correttamente il provisioning e unprovisioning tramite keycloak - cioè quando un'utente viene cancellato, dobbiamo in qualche modo de-allocare tutto per un certo servizio altrimenti rimane spazzatura.
+Utilizziamo Keycloak e OAuth2.0 proxy come middleware the autenticazione che implementano OpenID Connect
+- Capire a livello applicativo che informazioni vede il mock-svc 
+- Creare un portale di provisioning dove si decide l'username, il realm su cui cadere e la prima password etc.
+- Dopo il provisioning, se un servizio vede l'utente per la prima volta, crea autorizzazioni di default e le salva nel suo DB
+- Creare un flusso di comunicazione per unprovisioning e cancellare tutte le risorse e informazioni di autorizzazione relative all'utente cancellato
 
-- Creare un plugin custom per keycloak per fare home-realm-discovery non basata su email ma su un hash dell'email e tramite bloom filter.
+Nel futuro:
+Creiamo un provisioning-svc che consente ad utenti di registrarsi direttamente senza che un admin abbia creato le loro credenziali direttamente.

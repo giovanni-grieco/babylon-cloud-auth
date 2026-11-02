@@ -61,7 +61,7 @@
   "users": [
     {
       "username": "bob",
-      "email": "bob@school-b.test",
+      "email": "bob@dc2.test",
       "firstName": "Bob",
       "lastName": "Test",
       "enabled": true,
