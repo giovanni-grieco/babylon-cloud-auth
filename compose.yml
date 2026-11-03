@@ -90,6 +90,19 @@ services:
       - keycloak
       - keycloak-dc-1
       - keycloak-dc-2
+      - control-plane-svc
+  
+  control-plane-svc:
+    build:
+      context: .
+      dockerfile: ./control-plane-svc/Dockerfile
+    container_name: control-plane-svc
+    environment:
+      - PORT=8080
+    networks:
+      edge-net:
+        aliases:
+          - control-plane-svc
 
   # 1. CENTRAL IDENTITY BROKER: the single login point. It holds no passwords or
   #    profiles, and routes each email domain to the DC Keycloak that owns the user.
