@@ -104,8 +104,8 @@ services:
         aliases:
           - control-plane-svc
 
-  # 1. CENTRAL IDENTITY BROKER: the single login point. It holds no passwords or
-  #    profiles, and routes each email domain to the DC Keycloak that owns the user.
+  # 1. CENTRAL IDENTITY BROKER: the single login point. It routes B2B email domains
+  #    to the DC Keycloak that owns the user, and stores self-registered B2C users itself.
   keycloak:
     <<: *keycloak-base
     build: ./keycloak/central
@@ -129,6 +129,16 @@ services:
     depends_on:
       keycloak-db:
         condition: service_healthy
+
+  # Catches the central realm's verification and password-reset emails (lab only).
+  # Inbox: http://localhost:8025
+  mailpit:
+    image: axllent/mailpit:v1.31.6
+    container_name: mailpit
+    ports:
+      - "127.0.0.1:8025:8025"
+    networks:
+      - keycloak-net
 
   keycloak-db:
     <<: *keycloak-db-base

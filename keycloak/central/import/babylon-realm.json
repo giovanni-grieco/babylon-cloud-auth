@@ -2,19 +2,30 @@
   "realm": "babylon",
   "enabled": true,
   "sslRequired": "none",
-  "registrationAllowed": false,
-  "resetPasswordAllowed": false,
+  "registrationAllowed": true,
+  "registrationEmailAsUsername": true,
+  "verifyEmail": true,
+  "resetPasswordAllowed": true,
   "rememberMe": false,
   "editUsernameAllowed": false,
   "loginWithEmailAllowed": true,
+  "duplicateEmailsAllowed": false,
+  "bruteForceProtected": true,
+  "passwordPolicy": "length(12) and notUsername and notEmail",
   "accessTokenLifespan": 300,
   "ssoSessionIdleTimeout": 1800,
   "ssoSessionMaxLifespan": 36000,
+  "smtpServer": {
+    "host": "mailpit",
+    "port": "1025",
+    "from": "no-reply@babylon.test",
+    "fromDisplayName": "Babylon"
+  },
   "browserFlow": "home-idp-discovery",
   "authenticationFlows": [
     {
       "alias": "home-idp-discovery",
-      "description": "Existing session, otherwise route to the DC by email domain",
+      "description": "Existing session, otherwise B2B users go to their DC by email domain and B2C users sign in here",
       "providerId": "basic-flow",
       "topLevel": true,
       "builtIn": false,
@@ -32,18 +43,42 @@
           "requirement": "ALTERNATIVE",
           "priority": 20,
           "userSetupAllowed": false
+        },
+        {
+          "authenticatorFlow": true,
+          "flowAlias": "b2c-login",
+          "requirement": "ALTERNATIVE",
+          "priority": 30,
+          "userSetupAllowed": false
         }
       ]
     },
     {
       "alias": "discover-dc",
-      "description": "",
+      "description": "Redirect to the DC that owns the email domain. With no match, the step is only attempted and b2c-login runs.",
       "providerId": "basic-flow",
       "topLevel": false,
       "builtIn": false,
       "authenticationExecutions": [
         {
           "authenticator": "home-idp-discovery",
+          "authenticatorFlow": false,
+          "requirement": "REQUIRED",
+          "priority": 10,
+          "userSetupAllowed": false,
+          "authenticatorConfig": "discover-dc-config"
+        }
+      ]
+    },
+    {
+      "alias": "b2c-login",
+      "description": "B2C users, stored in this realm",
+      "providerId": "basic-flow",
+      "topLevel": false,
+      "builtIn": false,
+      "authenticationExecutions": [
+        {
+          "authenticator": "auth-username-password-form",
           "authenticatorFlow": false,
           "requirement": "REQUIRED",
           "priority": 10,
@@ -66,6 +101,18 @@
           "userSetupAllowed": false
         }
       ]
+    }
+  ],
+  "authenticatorConfig": [
+    {
+      "alias": "discover-dc-config",
+      "config": {
+        "forwardUnverifiedEmail": "true",
+        "forwardToFirstMatch": "true",
+        "forwardToLinkedIdp": "false",
+        "bypassLoginPage": "false",
+        "userAttribute": "email"
+      }
     }
   ],
   "identityProviders": [
@@ -181,7 +228,7 @@
         "subComponents": {},
         "config": {
           "kc.user.profile.config": [
-            "{\"attributes\": [{\"name\": \"username\", \"validations\": {\"length\": {\"min\": 3, \"max\": 255}, \"username-prohibited-characters\": {}, \"up-username-not-idn-homograph\": {}}, \"permissions\": {\"view\": [\"admin\"], \"edit\": [\"admin\"]}}, {\"name\": \"email\", \"validations\": {\"email\": {}, \"length\": {\"max\": 255}}, \"permissions\": {\"view\": [\"admin\"], \"edit\": [\"admin\"]}}], \"unmanagedAttributePolicy\": \"ENABLED\"}"
+            "{\"attributes\": [{\"name\": \"username\", \"validations\": {\"length\": {\"min\": 3, \"max\": 255}, \"username-prohibited-characters\": {}, \"up-username-not-idn-homograph\": {}}, \"permissions\": {\"view\": [\"admin\"], \"edit\": [\"admin\"]}}, {\"name\": \"email\", \"validations\": {\"email\": {}, \"length\": {\"max\": 255}, \"pattern\": {\"pattern\": \"(?i)^(?!.*@(dc1\\\\.test|dc2\\\\.test)$).*$\", \"error-message\": \"This email domain belongs to a business customer. Sign in with your company account instead.\"}}, \"permissions\": {\"view\": [\"admin\", \"user\"], \"edit\": [\"admin\", \"user\"]}}], \"unmanagedAttributePolicy\": \"ENABLED\"}"
           ]
         }
       }
