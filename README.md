@@ -13,8 +13,8 @@ Run ```./start.sh```. It adds any missing local secrets to `.env`, which `docker
 Then open http://babylon.test. Keycloak takes a little while to start the first time.
 
 Test users (email / password):
-- `alice@school-a.test` / `alice`, in `dc-1`, group `service-a`
-- `bob@school-b.test` / `bob`, in `dc-2`, group `service-b`
+- `alice@dc1.test` / `alice`, in `dc-1`, group `service-a`
+- `bob@dc2.test` / `bob`, in `dc-2`, group `service-b`
 
 Self-registration is off. Users are provisioned in their DC's Keycloak.
 

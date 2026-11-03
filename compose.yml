@@ -214,26 +214,6 @@ services:
         aliases:
           - oauth2-proxy
 
-  # Holds oauth2-proxy sessions, shared so that users stay logged in if they move between clusters
-  state-kv:
-    image: redis:latest
-    container_name: state-kv
-    volumes:
-        - ./state-kv:/data
-    environment:
-        - REDIS_ARGS=
-    ports:
-      - "127.0.0.1:6371:6379"
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 5s
-      timeout: 5s
-      retries: 3
-    networks:
-      edge-net:
-        aliases:
-          - state-kv
-
   # 3. API GATEWAY (one per cluster; duplicate for cluster B later)
   api-gateway-1:
     image: traefik:latest

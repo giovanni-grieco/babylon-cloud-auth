@@ -98,7 +98,7 @@
         "sendIdTokenOnLogout": "true",
         "backchannelSupported": "false",
         "syncMode": "FORCE",
-        "home.idp.discovery.domains": "school-a.test"
+        "home.idp.discovery.domains": "dc1.test"
       }
     },
     {
@@ -130,7 +130,7 @@
         "sendIdTokenOnLogout": "true",
         "backchannelSupported": "false",
         "syncMode": "FORCE",
-        "home.idp.discovery.domains": "school-b.test"
+        "home.idp.discovery.domains": "dc2.test"
       }
     }
   ],
