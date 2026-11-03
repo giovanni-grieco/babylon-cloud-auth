@@ -14,7 +14,7 @@ x-keycloak-base: &keycloak-base
         exec 3<>/dev/tcp/127.0.0.1/9000 &&
         printf 'GET /health/ready HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n' >&3 &&
         grep -q '"UP"' <&3
-    interval: 10s
+    interval: 5s
     timeout: 5s
     retries: 30
     start_period: 30s

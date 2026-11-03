@@ -3,7 +3,7 @@
   "enabled": true,
   "sslRequired": "none",
   "registrationAllowed": true,
-  "registrationEmailAsUsername": true,
+  "registrationEmailAsUsername": false,
   "verifyEmail": true,
   "resetPasswordAllowed": true,
   "rememberMe": false,
@@ -228,7 +228,7 @@
         "subComponents": {},
         "config": {
           "kc.user.profile.config": [
-            "{\"attributes\": [{\"name\": \"username\", \"validations\": {\"length\": {\"min\": 3, \"max\": 255}, \"username-prohibited-characters\": {}, \"up-username-not-idn-homograph\": {}}, \"permissions\": {\"view\": [\"admin\"], \"edit\": [\"admin\"]}}, {\"name\": \"email\", \"validations\": {\"email\": {}, \"length\": {\"max\": 255}, \"pattern\": {\"pattern\": \"(?i)^(?!.*@(dc1\\\\.test|dc2\\\\.test)$).*$\", \"error-message\": \"This email domain belongs to a business customer. Sign in with your company account instead.\"}}, \"permissions\": {\"view\": [\"admin\", \"user\"], \"edit\": [\"admin\", \"user\"]}}], \"unmanagedAttributePolicy\": \"ENABLED\"}"
+            "{\"attributes\": [{\"name\": \"username\", \"validations\": {\"length\": {\"min\": 3, \"max\": 255}, \"username-prohibited-characters\": {}, \"up-username-not-idn-homograph\": {}, \"pattern\": {\"pattern\": \"^[^@]+$\", \"error-message\": \"Usernames cannot contain @.\"}}, \"permissions\": {\"view\": [\"admin\", \"user\"], \"edit\": [\"admin\", \"user\"]}}, {\"name\": \"email\", \"validations\": {\"email\": {}, \"length\": {\"max\": 255}, \"pattern\": {\"pattern\": \"(?i)^(?!.*@(dc1\\\\.test|dc2\\\\.test)$).*$\", \"error-message\": \"This email domain belongs to a business customer. Sign in with your company account instead.\"}}, \"permissions\": {\"view\": [\"admin\", \"user\"], \"edit\": [\"admin\", \"user\"]}}], \"unmanagedAttributePolicy\": \"ENABLED\"}"
           ]
         }
       }
