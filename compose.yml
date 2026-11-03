@@ -90,19 +90,28 @@ services:
       - keycloak
       - keycloak-dc-1
       - keycloak-dc-2
-      - control-plane-svc
-  
+
+  # Operator console for provisioning B2B accounts into the DC realms, at
+  # http://control-plane.babylon.test. It has no login of its own; nginx only
+  # lets this machine reach it.
   control-plane-svc:
     build:
       context: .
       dockerfile: ./control-plane-svc/Dockerfile
     container_name: control-plane-svc
     environment:
-      - PORT=8080
+      PORT: "8080"
+      CP_CONFIG: /etc/control-plane/config.json
+      CENTRAL_CONTROL_PLANE_SECRET: ${CENTRAL_CONTROL_PLANE_SECRET:?run start.sh or copy .env.example to .env}
+      DC1_CONTROL_PLANE_SECRET: ${DC1_CONTROL_PLANE_SECRET:?run start.sh or copy .env.example to .env}
+      DC2_CONTROL_PLANE_SECRET: ${DC2_CONTROL_PLANE_SECRET:?run start.sh or copy .env.example to .env}
+    volumes:
+      - ./control-plane-svc/config.json:/etc/control-plane/config.json:ro
     networks:
-      edge-net:
-        aliases:
-          - control-plane-svc
+      - edge-net # reaches every Keycloak through the load balancer, like the browser
+    depends_on:
+      load-balancer:
+        condition: service_started
 
   # 1. CENTRAL IDENTITY BROKER: the single login point. It routes B2B email domains
   #    to the DC Keycloak that owns the user, and stores self-registered B2C users itself.
@@ -121,6 +130,7 @@ services:
       OIDC_CLIENT_SECRET: ${OIDC_CLIENT_SECRET:?run start.sh or copy .env.example to .env}
       DC1_BROKER_SECRET: ${DC1_BROKER_SECRET:?run start.sh or copy .env.example to .env}
       DC2_BROKER_SECRET: ${DC2_BROKER_SECRET:?run start.sh or copy .env.example to .env}
+      CENTRAL_CONTROL_PLANE_SECRET: ${CENTRAL_CONTROL_PLANE_SECRET:?run start.sh or copy .env.example to .env}
     volumes:
       - ./keycloak/central/import:/opt/keycloak/data/import:ro
     networks:
@@ -163,7 +173,9 @@ services:
       KC_HOSTNAME: http://auth.dc-1.babylon.test
       KC_BOOTSTRAP_ADMIN_USERNAME: ${DC1_ADMIN_USERNAME:?run start.sh or copy .env.example to .env}
       KC_BOOTSTRAP_ADMIN_PASSWORD: ${DC1_ADMIN_PASSWORD:?run start.sh or copy .env.example to .env}
-      DC1_BROKER_SECRET: ${DC1_BROKER_SECRET:?run start.sh or copy .env.example to .env} # read by the realm import
+      # Read by the realm import
+      DC1_BROKER_SECRET: ${DC1_BROKER_SECRET:?run start.sh or copy .env.example to .env}
+      DC1_CONTROL_PLANE_SECRET: ${DC1_CONTROL_PLANE_SECRET:?run start.sh or copy .env.example to .env}
     volumes:
       - ./keycloak/dc-1/import:/opt/keycloak/data/import:ro
     networks:
@@ -195,7 +207,9 @@ services:
       KC_HOSTNAME: http://auth.dc-2.babylon.test
       KC_BOOTSTRAP_ADMIN_USERNAME: ${DC2_ADMIN_USERNAME:?run start.sh or copy .env.example to .env}
       KC_BOOTSTRAP_ADMIN_PASSWORD: ${DC2_ADMIN_PASSWORD:?run start.sh or copy .env.example to .env}
-      DC2_BROKER_SECRET: ${DC2_BROKER_SECRET:?run start.sh or copy .env.example to .env} # read by the realm import
+      # Read by the realm import
+      DC2_BROKER_SECRET: ${DC2_BROKER_SECRET:?run start.sh or copy .env.example to .env}
+      DC2_CONTROL_PLANE_SECRET: ${DC2_CONTROL_PLANE_SECRET:?run start.sh or copy .env.example to .env}
     volumes:
       - ./keycloak/dc-2/import:/opt/keycloak/data/import:ro
     networks:

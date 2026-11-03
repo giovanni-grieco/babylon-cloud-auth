@@ -11,4 +11,5 @@
 #   auth.babylon.test       central Keycloak (single login point)
 #   auth.dc-1.babylon.test  dc-1 Keycloak (school-a.test users)
 #   auth.dc-2.babylon.test  dc-2 Keycloak (school-b.test users)
-127.0.0.1   babylon.test auth.babylon.test auth.dc-1.babylon.test auth.dc-2.babylon.test
+#   control-plane.babylon.test  operator console for provisioning B2B accounts
+127.0.0.1   babylon.test auth.babylon.test auth.dc-1.babylon.test auth.dc-2.babylon.test control-plane.babylon.test

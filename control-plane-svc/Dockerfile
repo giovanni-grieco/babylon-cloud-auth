@@ -1,27 +1,17 @@
-FROM golang:latest AS builder
-
-WORKDIR /src
-
-COPY common/go.mod ./common/
-
-COPY control-plane-svc/go.mod control-plane-svc/go.sum ./control-plane-svc/
+FROM golang:1.27 AS builder
 
 WORKDIR /src/control-plane-svc
 
-RUN go mod download
+# Standard library only, so there's no go.sum and nothing to download.
+COPY control-plane-svc/go.mod ./
+COPY control-plane-svc ./
 
-WORKDIR /src
+RUN go test ./... && CGO_ENABLED=0 GOOS=linux go build -trimpath -o /control-plane-svc .
 
-COPY common ./common
-
-COPY control-plane-svc ./control-plane-svc
-
-WORKDIR /src/control-plane-svc
-
-RUN CGO_ENABLED=0 GOOS=linux go build -o /control-plane-svc
-
-FROM alpine:latest 
+FROM alpine:latest
 
 COPY --from=builder /control-plane-svc /control-plane-svc
+
+USER nobody
 
 CMD ["/control-plane-svc"]

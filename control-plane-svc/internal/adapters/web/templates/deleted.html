@@ -1,0 +1,14 @@
+{{template "top" "Delete result"}}
+<h1>Delete from {{.Realm.Name}}</h1>
+<table>
+  <tr><th>Username</th><th>ID</th><th>Result</th></tr>
+  {{range .Results}}
+  <tr>
+    <td>{{.Username}}</td>
+    <td><code>{{.ID}}</code></td>
+    <td>{{if .Err}}<span class="error">{{.Err}}</span>{{else}}deleted{{end}}</td>
+  </tr>
+  {{end}}
+</table>
+<p><a href="/realms/{{.Realm.ID}}">Back to {{.Realm.Name}}</a></p>
+{{template "bottom"}}

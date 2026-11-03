@@ -56,6 +56,20 @@
           }
         }
       ]
+    },
+    {
+      "clientId": "control-plane",
+      "name": "Control plane (provisioning)",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "secret": "${DC2_CONTROL_PLANE_SECRET}",
+      "serviceAccountsEnabled": true,
+      "standardFlowEnabled": false,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "redirectUris": [],
+      "webOrigins": []
     }
   ],
   "users": [
@@ -79,6 +93,18 @@
       "realmRoles": [
         "default-roles-babylon"
       ]
+    },
+    {
+      "username": "service-account-control-plane",
+      "enabled": true,
+      "serviceAccountClientId": "control-plane",
+      "clientRoles": {
+        "realm-management": [
+          "view-users",
+          "manage-users",
+          "query-groups"
+        ]
+      }
     }
   ]
 }

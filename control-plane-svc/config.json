@@ -1,0 +1,26 @@
+{
+  "central": {
+    "baseURL": "http://auth.babylon.test",
+    "realm": "babylon",
+    "clientID": "control-plane",
+    "secretEnv": "CENTRAL_CONTROL_PLANE_SECRET"
+  },
+  "realms": [
+    {
+      "id": "dc-1",
+      "name": "DC 1",
+      "baseURL": "http://auth.dc-1.babylon.test",
+      "realm": "babylon",
+      "clientID": "control-plane",
+      "secretEnv": "DC1_CONTROL_PLANE_SECRET"
+    },
+    {
+      "id": "dc-2",
+      "name": "DC 2",
+      "baseURL": "http://auth.dc-2.babylon.test",
+      "realm": "babylon",
+      "clientID": "control-plane",
+      "secretEnv": "DC2_CONTROL_PLANE_SECRET"
+    }
+  ]
+}

@@ -280,6 +280,34 @@
           }
         }
       ]
+    },
+    {
+      "clientId": "control-plane",
+      "name": "Control plane (provisioning)",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "secret": "${CENTRAL_CONTROL_PLANE_SECRET}",
+      "serviceAccountsEnabled": true,
+      "standardFlowEnabled": false,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "redirectUris": [],
+      "webOrigins": []
+    }
+  ],
+  "users": [
+    {
+      "username": "service-account-control-plane",
+      "enabled": true,
+      "serviceAccountClientId": "control-plane",
+      "clientRoles": {
+        "realm-management": [
+          "view-users",
+          "manage-users",
+          "view-identity-providers"
+        ]
+      }
     }
   ]
 }

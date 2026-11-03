@@ -1,0 +1,60 @@
+{{template "top" .Info.Realm.Name}}
+<h1>{{.Info.Realm.Name}}</h1>
+
+<dl>
+  <dt>Email domains routed here by the central Keycloak</dt>
+  <dd>{{range $i, $d := .Info.Domains}}{{if $i}}, {{end}}{{$d}}{{else}}<span class="error">None. Provisioned users couldn't sign in, so imports are refused until a domain is added to this realm's identity provider in the central Keycloak.</span>{{end}}</dd>
+  <dt>Groups</dt>
+  <dd>{{range $i, $g := .Info.Groups}}{{if $i}}, {{end}}{{$g}}{{else}}none{{end}}</dd>
+</dl>
+
+<h2>Create users</h2>
+<form method="post" action="/realms/{{.Info.Realm.ID}}/import" enctype="multipart/form-data">
+  <p><label>CSV or JSON file: <input type="file" name="file" accept=".csv,.json,text/csv,application/json" required></label></p>
+  <p><button type="submit">Create users</button></p>
+</form>
+<p>Every row is checked first. If any row is wrong, nothing is created. Each new user gets a temporary password, which is shown once and must be changed at first sign-in.</p>
+<details>
+  <summary>File format</summary>
+  <p>CSV, with a header row. Separate groups with <code>;</code>.</p>
+  <pre>username,email,groups
+mrossi,mrossi@{{with .Info.Domains}}{{index . 0}}{{else}}example.test{{end}},service-a;service-b</pre>
+  <p>JSON:</p>
+  <pre>{"users": [
+  {"username": "mrossi", "email": "mrossi@{{with .Info.Domains}}{{index . 0}}{{else}}example.test{{end}}", "groups": ["service-a"]}
+]}</pre>
+  <p>The email is required and must use one of the domains above: the central Keycloak picks the realm from it at sign-in. Usernames can't contain <code>@</code>.</p>
+</details>
+
+<h2>Users</h2>
+<form method="get" action="/realms/{{.Info.Realm.ID}}">
+  <label>Search username, email or name: <input type="search" name="search" value="{{.Search}}"></label>
+  <button type="submit">Search</button>
+</form>
+
+{{if .Users}}
+<form method="post" action="/realms/{{.Info.Realm.ID}}/delete">
+  <table>
+    <tr><th>Delete</th><th>Username</th><th>Email</th><th>Enabled</th><th>Created</th></tr>
+    {{range .Users}}
+    <tr>
+      <td><input type="checkbox" name="id" value="{{.ID}}" aria-label="Delete {{.Username}}"></td>
+      <td>{{.Username}}</td>
+      <td>{{.Email}}</td>
+      <td>{{if .Enabled}}yes{{else}}no{{end}}</td>
+      <td>{{if not .CreatedAt.IsZero}}{{.CreatedAt.Format "2006-01-02 15:04"}}{{end}}</td>
+    </tr>
+    {{end}}
+  </table>
+  <p><label><input type="checkbox" required> Delete the selected accounts and end their sessions. This can't be undone.</label></p>
+  <p><button type="submit">Delete selected</button></p>
+</form>
+{{else}}
+<p>No users{{if .Search}} match "{{.Search}}"{{end}}.</p>
+{{end}}
+
+<p>
+  {{if ge .Prev 0}}<a href="/realms/{{.Info.Realm.ID}}?search={{.Search}}&amp;first={{.Prev}}">Previous page</a>{{end}}
+  {{if .Next}}<a href="/realms/{{.Info.Realm.ID}}?search={{.Search}}&amp;first={{.Next}}">Next page</a>{{end}}
+</p>
+{{template "bottom"}}

@@ -1,0 +1,3 @@
+username,email,groups
+jack,jack@dc2.test,service-a
+martin,martin@dc2.test,service-a;service-b

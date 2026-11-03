@@ -1,0 +1,5 @@
+{{template "top" "Error"}}
+<h1>Something went wrong</h1>
+<p class="error">{{.Message}}</p>
+{{with .Realm}}{{if .ID}}<p><a href="/realms/{{.ID}}">Back to {{.Name}}</a></p>{{end}}{{end}}
+{{template "bottom"}}

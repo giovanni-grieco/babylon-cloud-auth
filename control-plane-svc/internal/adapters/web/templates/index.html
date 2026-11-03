@@ -1,0 +1,11 @@
+{{template "top" "Realms"}}
+<h1>Realms</h1>
+<p>Choose the realm where the organization's accounts should live.</p>
+<ul>
+{{range .Realms}}
+  <li><a href="/realms/{{.ID}}">{{.Name}}</a> ({{.ID}})</li>
+{{else}}
+  <li>No realms are configured.</li>
+{{end}}
+</ul>
+{{template "bottom"}}
