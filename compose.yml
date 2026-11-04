@@ -156,6 +156,8 @@ services:
     environment:
       <<: *keycloak-db-env
       POSTGRES_PASSWORD: ${KC_DB_PASSWORD:?run start.sh or copy .env.example to .env}
+    ports:
+      - "5430:5432" # lab only; remove with HTTPS
     volumes:
       - ./keycloak-db-data:/var/lib/postgresql/data
     networks:
@@ -191,6 +193,8 @@ services:
     environment:
       <<: *keycloak-db-env
       POSTGRES_PASSWORD: ${DC1_DB_PASSWORD:?run start.sh or copy .env.example to .env}
+    ports:
+      - "5431:5432" # lab only; remove with HTTPS
     volumes:
       - ./keycloak-dc-1-db-data:/var/lib/postgresql/data
     networks:
@@ -225,6 +229,8 @@ services:
     environment:
       <<: *keycloak-db-env
       POSTGRES_PASSWORD: ${DC2_DB_PASSWORD:?run start.sh or copy .env.example to .env}
+    ports:
+      - "5432:5432" # lab only; remove with HTTPS
     volumes:
       - ./keycloak-dc-2-db-data:/var/lib/postgresql/data
     networks:
@@ -382,6 +388,3 @@ networks:
 
   cluster-net-2:
     driver: bridge
-
-volumes:
-  keycloak-db-data:
