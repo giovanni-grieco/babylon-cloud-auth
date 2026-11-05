@@ -108,7 +108,9 @@ services:
     volumes:
       - ./control-plane-svc/config.json:/etc/control-plane/config.json:ro
     networks:
-      - edge-net # reaches every Keycloak through the load balancer, like the browser
+      edge-net: # reaches every Keycloak through the load balancer, like the browser
+        aliases:
+          - control-plane
     depends_on:
       load-balancer:
         condition: service_started
@@ -131,6 +133,9 @@ services:
       DC1_BROKER_SECRET: ${DC1_BROKER_SECRET:?run start.sh or copy .env.example to .env}
       DC2_BROKER_SECRET: ${DC2_BROKER_SECRET:?run start.sh or copy .env.example to .env}
       CENTRAL_CONTROL_PLANE_SECRET: ${CENTRAL_CONTROL_PLANE_SECRET:?run start.sh or copy .env.example to .env}
+      # Home realm discovery oracle (babylon-hrd authenticator). Unset or unreachable:
+      # every user falls back to the central (B2C) login.
+      HRD_ORACLE_URL: http://control-plane:8080/v1/api/discover
     volumes:
       - ./keycloak/central/import:/opt/keycloak/data/import:ro
     networks:

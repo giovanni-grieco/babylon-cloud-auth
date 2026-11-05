@@ -25,6 +25,7 @@ func (wip *WebInboundPort) Routes() http.Handler {
 
 	mux.HandleFunc("GET /", wip.IndexHandler)
 	mux.HandleFunc("GET /discover", wip.DiscoverHandler)
+	mux.HandleFunc("POST /v1/api/discover", wip.DiscoverPostHandler)
 
 	return http.NewCrossOriginProtection().Handler(mux)
 }
@@ -47,4 +48,8 @@ func (wip *WebInboundPort) DiscoverHandler(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	w.Write([]byte(realm))
+}
+
+func (wip *WebInboundPort) DiscoverPostHandler(w http.ResponseWriter, r *http.Request) {
+	w.Write([]byte("{\"idp\":\"dc-1\"}"))
 }

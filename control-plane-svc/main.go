@@ -10,7 +10,7 @@ import (
 )
 
 const (
-	address = "control-plane.babylon.test"
+	address = "0.0.0.0"
 	port    = 8080
 )
 

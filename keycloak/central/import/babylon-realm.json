@@ -25,7 +25,7 @@
   "authenticationFlows": [
     {
       "alias": "home-idp-discovery",
-      "description": "Existing session, otherwise B2B users go to their DC by email domain and B2C users sign in here",
+      "description": "Existing session, otherwise B2B users go to their DC (decided by the HRD oracle) and B2C users sign in here",
       "providerId": "basic-flow",
       "topLevel": true,
       "builtIn": false,
@@ -55,18 +55,18 @@
     },
     {
       "alias": "discover-dc",
-      "description": "Redirect to the DC that owns the email domain. With no match, the step is only attempted and b2c-login runs.",
+      "description": "Ask the HRD oracle and redirect to the DC that owns the user. With no match, the step is only attempted and b2c-login runs.",
       "providerId": "basic-flow",
       "topLevel": false,
       "builtIn": false,
       "authenticationExecutions": [
         {
-          "authenticator": "home-idp-discovery",
+          "authenticator": "babylon-hrd",
           "authenticatorFlow": false,
           "requirement": "REQUIRED",
           "priority": 10,
           "userSetupAllowed": false,
-          "authenticatorConfig": "discover-dc-config"
+          "authenticatorConfig": "babylon-hrd-config"
         }
       ]
     },
@@ -105,13 +105,10 @@
   ],
   "authenticatorConfig": [
     {
-      "alias": "discover-dc-config",
+      "alias": "babylon-hrd-config",
       "config": {
-        "forwardUnverifiedEmail": "true",
-        "forwardToFirstMatch": "true",
-        "forwardToLinkedIdp": "false",
-        "bypassLoginPage": "false",
-        "userAttribute": "email"
+        "oracle.url": "${HRD_ORACLE_URL}",
+        "oracle.timeoutMs": "2000"
       }
     }
   ],
