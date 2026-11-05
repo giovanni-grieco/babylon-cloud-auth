@@ -1,6 +1,7 @@
 package main
 
 import (
+	"control-plane-svc/internals/inbound/rest"
 	"control-plane-svc/internals/inbound/web"
 	"control-plane-svc/internals/service"
 	"errors"
@@ -10,22 +11,36 @@ import (
 )
 
 const (
-	address = "0.0.0.0"
-	port    = 8080
+	address  = "0.0.0.0"
+	webport  = 8080
+	restport = 8081
 )
 
 func main() {
-	log.Printf("Starting control plane service on %s:%d", address, port)
+	log.Printf("Starting control plane")
 	controlPlaneService := service.NewControlPlanceService()
 
-	webInboundPort := web.NewWebInboundPort(address, port, controlPlaneService)
+	webInboundPort := web.NewWebInboundPort(address, webport, controlPlaneService)
+	restInboundPort := rest.NewRestInboundPort(address, restport, controlPlaneService)
 
 	httpServer := &http.Server{
 		Addr:    webInboundPort.Address + ":" + strconv.Itoa(webInboundPort.Port),
 		Handler: webInboundPort.Routes(),
 	}
 
-	log.Printf("%s running on :%d\n", address, port)
+	restHttpServer := &http.Server{
+		Addr:    restInboundPort.Address + ":" + strconv.Itoa(restInboundPort.Port),
+		Handler: restInboundPort.Routes(),
+	}
+
+	go func() {
+		log.Printf("rest api server started %s:%d\n", address, restport)
+		if err := restHttpServer.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			log.Fatal(err)
+		}
+	}()
+
+	log.Printf("web server started %s:%d\n", address, webport)
 	if err := httpServer.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		log.Fatal(err)
 	}

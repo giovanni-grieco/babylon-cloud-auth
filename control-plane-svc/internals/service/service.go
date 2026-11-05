@@ -15,11 +15,11 @@ func NewControlPlanceService() *ControlPlaneService {
 func (cps *ControlPlaneService) DiscoverRealm(userHint string) (string, error) {
 	// TODO: Implement realm discovery logic
 	if userHint == "alice" || userHint == "alice@dc1.test" {
-		return "auth.dc-1.babylon.test", nil
+		return "dc-1", nil
 	}
 
 	if userHint == "bob" || userHint == "bob@dc2.test" {
-		return "auth.dc-2.babylon.test", nil
+		return "dc-2", nil
 	}
 
 	return "", fmt.Errorf("realm not found for user hint: %s", userHint)
