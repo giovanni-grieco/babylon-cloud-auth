@@ -63,7 +63,7 @@
       "enabled": true,
       "protocol": "openid-connect",
       "publicClient": false,
-      "secret": "${DC1_CONTROL_PLANE_SECRET}",
+      "secret": "${DC1_CONTROL_PLANE_KEYCLOAK_CLIENT_SECRET}",
       "serviceAccountsEnabled": true,
       "standardFlowEnabled": false,
       "implicitFlowEnabled": false,

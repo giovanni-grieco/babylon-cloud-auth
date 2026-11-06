@@ -108,6 +108,7 @@
       "alias": "babylon-hrd-config",
       "config": {
         "oracle.url": "${HRD_ORACLE_URL}",
+        "oracle.secret": "${HRD_ORACLE_SECRET}",
         "oracle.timeoutMs": "2000"
       }
     }
@@ -284,7 +285,7 @@
       "enabled": true,
       "protocol": "openid-connect",
       "publicClient": false,
-      "secret": "${CENTRAL_CONTROL_PLANE_SECRET}",
+      "secret": "${CENTRAL_CONTROL_PLANE_KEYCLOAK_CLIENT_SECRET}",
       "serviceAccountsEnabled": true,
       "standardFlowEnabled": false,
       "implicitFlowEnabled": false,

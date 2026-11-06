@@ -90,7 +90,16 @@ services:
       - keycloak
       - keycloak-dc-1
       - keycloak-dc-2
-
+  
+  # Catches the central realm's verification and password-reset emails (lab only).
+  # Inbox: http://localhost:8025
+  mailpit:
+    image: axllent/mailpit:v1.31.6
+    container_name: mailpit
+    ports:
+      - "127.0.0.1:8025:8025"
+    networks:
+      - keycloak-net
   # Operator console for provisioning B2B accounts into the DC realms, at
   # http://control-plane.babylon.test. It has no login of its own; nginx only
   # lets this machine reach it.
@@ -105,8 +114,9 @@ services:
       REST_PORT:  "8081"
       CP_CONFIG: /etc/control-plane/config.json
       CONTROL_PLANE_SECRET: ${CONTROL_PLANE_SECRET:?run start.sh or copy .env.example to .env}
-      DC1_CONTROL_PLANE_SECRET: ${DC1_CONTROL_PLANE_SECRET:?run start.sh or copy .env.example to .env}
-      DC2_CONTROL_PLANE_SECRET: ${DC2_CONTROL_PLANE_SECRET:?run start.sh or copy .env.example to .env}
+      CENTRAL_CONTROL_PLANE_KEYCLOAK_CLIENT_SECRET: ${CENTRAL_CONTROL_PLANE_KEYCLOAK_CLIENT_SECRET:? run start.sh or copy .env.example to .env}
+      DC1_CONTROL_PLANE_KEYCLOAK_CLIENT_SECRET: ${DC1_CONTROL_PLANE_KEYCLOAK_CLIENT_SECRET:?run start.sh or copy .env.example to .env}
+      DC2_CONTROL_PLANE_KEYCLOAK_CLIENT_SECRET: ${DC2_CONTROL_PLANE_KEYCLOAK_CLIENT_SECRET:?run start.sh or copy .env.example to .env}
       POSTGRES_HOST: control-plane-db
       POSTGRES_PORT: 5432
       POSTGRES_USER: control-plane
@@ -168,10 +178,11 @@ services:
       OIDC_CLIENT_SECRET: ${OIDC_CLIENT_SECRET:?run start.sh or copy .env.example to .env}
       DC1_BROKER_SECRET: ${DC1_BROKER_SECRET:?run start.sh or copy .env.example to .env}
       DC2_BROKER_SECRET: ${DC2_BROKER_SECRET:?run start.sh or copy .env.example to .env}
-      CENTRAL_CONTROL_PLANE_SECRET: ${CENTRAL_CONTROL_PLANE_SECRET:?run start.sh or copy .env.example to .env}
       # Home realm discovery oracle (babylon-hrd authenticator). Unset or unreachable:
       # every user falls back to the central (B2C) login.
+      CENTRAL_CONTROL_PLANE_KEYCLOAK_CLIENT_SECRET: ${CENTRAL_CONTROL_PLANE_KEYCLOAK_CLIENT_SECRET}
       HRD_ORACLE_URL: http://control-plane:8081/api/v1/discover
+      HRD_ORACLE_SECRET: ${CONTROL_PLANE_SECRET:?run start.sh or copy .env.example to .env}
     volumes:
       - ./keycloak/central/import:/opt/keycloak/data/import:ro
     networks:
@@ -180,16 +191,6 @@ services:
     depends_on:
       keycloak-db:
         condition: service_healthy
-
-  # Catches the central realm's verification and password-reset emails (lab only).
-  # Inbox: http://localhost:8025
-  mailpit:
-    image: axllent/mailpit:v1.31.6
-    container_name: mailpit
-    ports:
-      - "127.0.0.1:8025:8025"
-    networks:
-      - keycloak-net
 
   keycloak-db:
     <<: *keycloak-db-base
@@ -218,7 +219,7 @@ services:
       KC_BOOTSTRAP_ADMIN_PASSWORD: ${DC1_ADMIN_PASSWORD:?run start.sh or copy .env.example to .env}
       # Read by the realm import
       DC1_BROKER_SECRET: ${DC1_BROKER_SECRET:?run start.sh or copy .env.example to .env}
-      DC1_CONTROL_PLANE_SECRET: ${DC1_CONTROL_PLANE_SECRET:?run start.sh or copy .env.example to .env}
+      DC1_CONTROL_PLANE_KEYCLOAK_CLIENT_SECRET: ${DC1_CONTROL_PLANE_KEYCLOAK_CLIENT_SECRET:?run start.sh or copy .env.example to .env}
     volumes:
       - ./keycloak/dc-1/import:/opt/keycloak/data/import:ro
     networks:
@@ -254,7 +255,7 @@ services:
       KC_BOOTSTRAP_ADMIN_PASSWORD: ${DC2_ADMIN_PASSWORD:?run start.sh or copy .env.example to .env}
       # Read by the realm import
       DC2_BROKER_SECRET: ${DC2_BROKER_SECRET:?run start.sh or copy .env.example to .env}
-      DC2_CONTROL_PLANE_SECRET: ${DC2_CONTROL_PLANE_SECRET:?run start.sh or copy .env.example to .env}
+      DC2_CONTROL_PLANE_KEYCLOAK_CLIENT_SECRET: ${DC2_CONTROL_PLANE_KEYCLOAK_CLIENT_SECRET:?run start.sh or copy .env.example to .env}
     volumes:
       - ./keycloak/dc-2/import:/opt/keycloak/data/import:ro
     networks:

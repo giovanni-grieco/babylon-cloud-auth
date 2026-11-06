@@ -1,6 +1,7 @@
 package main
 
 import (
+	"control-plane-svc/internals/clients"
 	"control-plane-svc/internals/inbound/rest"
 	"control-plane-svc/internals/inbound/web"
 	"control-plane-svc/internals/service"
@@ -80,6 +81,13 @@ func main() {
 		cfg.Timezone,
 	)
 
+	if err != nil {
+		panic(err)
+	}
+
+	keycloakClientDC1 := clients.NewKeycloakClient("http://auth.dc-1.babylon.test", "control-plane", "c561cfee7acf06535d039fac719608026e11ee905b3c4ceedc28acfe8a927530")
+
+	err = keycloakClientDC1.AcquireNewAccessToken()
 	if err != nil {
 		panic(err)
 	}

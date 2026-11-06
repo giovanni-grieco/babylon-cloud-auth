@@ -28,6 +28,7 @@ public class HomeRealmDiscoverer implements Authenticator{
     private static final Logger LOG = Logger.getLogger(HomeRealmDiscoverer.class);
 
     static final String CFG_ORACLE_URL = "oracle.url";
+    static final String CFG_ORACLE_SECRET = "oracle.secret";
     static final String CFG_TIMEOUT_MS = "oracle.timeoutMs";
 
     @java.lang.Override
