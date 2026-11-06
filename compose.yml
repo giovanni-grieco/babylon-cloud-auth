@@ -100,11 +100,24 @@ services:
       dockerfile: ./control-plane-svc/Dockerfile
     container_name: control-plane-svc
     environment:
-      PORT: "8080"
+      ADDRESS:    0.0.0.0
+      WEB_PORT:   "8080"
+      REST_PORT:  "8081"
       CP_CONFIG: /etc/control-plane/config.json
-      CENTRAL_CONTROL_PLANE_SECRET: ${CENTRAL_CONTROL_PLANE_SECRET:?run start.sh or copy .env.example to .env}
+      CONTROL_PLANE_SECRET: ${CONTROL_PLANE_SECRET:?run start.sh or copy .env.example to .env}
       DC1_CONTROL_PLANE_SECRET: ${DC1_CONTROL_PLANE_SECRET:?run start.sh or copy .env.example to .env}
       DC2_CONTROL_PLANE_SECRET: ${DC2_CONTROL_PLANE_SECRET:?run start.sh or copy .env.example to .env}
+      POSTGRES_HOST: control-plane-db
+      POSTGRES_PORT: 5432
+      POSTGRES_USER: control-plane
+      POSTGRES_DB: control-plane
+      POSTGRES_PASSWORD: ${CONTROL_PLANE_DB_PASSWORD:?run start.sh or copy .env.example to .env}
+      POSTGRES_SSL_MODE: disable
+      TZ: Europe/Rome
+      TIMEZONE: Europe/Rome
+    ports:
+      - "127.0.0.1:9081:8081"
+      - "127.0.0.1:9080:8080"
     volumes:
       - ./control-plane-svc/config.json:/etc/control-plane/config.json:ro
     networks:
@@ -114,6 +127,29 @@ services:
     depends_on:
       load-balancer:
         condition: service_started
+      control-plane-db:
+        condition: service_healthy
+  
+  control-plane-db:
+    container_name: control-plane-db
+    image: postgres:17
+    environment:
+      POSTGRES_USER: control-plane
+      POSTGRES_DB: control-plane
+      TZ: Europe/Rome
+      POSTGRES_PASSWORD: ${CONTROL_PLANE_DB_PASSWORD:?run start.sh or copy .env.example to .env}
+    volumes:
+      - ./control-plane-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U keycloak -d keycloak"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      edge-net: # reaches every Keycloak through the load balancer, like the browser
+        aliases:
+          - control-plane-db
+
 
   # 1. CENTRAL IDENTITY BROKER: the single login point. It routes B2B email domains
   #    to the DC Keycloak that owns the user, and stores self-registered B2C users itself.

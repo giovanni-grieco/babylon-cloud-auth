@@ -128,8 +128,7 @@ public class HomeRealmDiscoverer implements Authenticator{
                 .withRequestConfig(rc)
                 .doPost(url)
                 .acceptJson()
-                .json(Map.of("username", username,
-                        "realm", context.getRealm().getName()))
+                .json(Map.of("login_hint", username))
                 .asResponse()) {
 
             if (resp.getStatus() != 200) {

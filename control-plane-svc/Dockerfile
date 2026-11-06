@@ -10,6 +10,8 @@ RUN go test ./... && CGO_ENABLED=0 GOOS=linux go build -trimpath -o /control-pla
 
 FROM alpine:latest
 
+RUN apk add --no-cache tzdata
+
 COPY --from=builder /control-plane-svc /control-plane-svc
 
 USER nobody

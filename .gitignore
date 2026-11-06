@@ -4,5 +4,6 @@
 *auth-kv*/
 keycloak-db-data/
 keycloak-dc-*-db-data/
+*db*data*/
 state-kv/
 nats/

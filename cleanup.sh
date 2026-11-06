@@ -6,4 +6,4 @@ set -e
 cd "$(dirname "$0")"
 
 ./stop.sh
-rm -rf keycloak-db-data keycloak-dc-1-db-data keycloak-dc-2-db-data
+rm -rf keycloak-db-data keycloak-dc-1-db-data keycloak-dc-2-db-data control-plane-db-data
