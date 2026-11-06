@@ -83,7 +83,7 @@ public class HomeRealmDiscoverer implements Authenticator{
             idpAlias = askOracle(context, hint);
         } catch (Exception e){
             // Oracle down/misconfigured: default to logging in on central
-            LOG.warnf(e, "HRD oracle call failed for realm %s, falling back to central login", context.getRealm().getName());
+            LOG.warnf(e, "HRD oracle call on %s failed for realm %s, falling back to central login", CFG_ORACLE_URL, context.getRealm().getName());
             fallBackToCentral(context, hint);
             return;
         }

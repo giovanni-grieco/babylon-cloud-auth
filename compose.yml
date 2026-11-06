@@ -171,7 +171,7 @@ services:
       CENTRAL_CONTROL_PLANE_SECRET: ${CENTRAL_CONTROL_PLANE_SECRET:?run start.sh or copy .env.example to .env}
       # Home realm discovery oracle (babylon-hrd authenticator). Unset or unreachable:
       # every user falls back to the central (B2C) login.
-      HRD_ORACLE_URL: http://control-plane:8080/v1/api/discover
+      HRD_ORACLE_URL: http://control-plane:8081/api/v1/discover
     volumes:
       - ./keycloak/central/import:/opt/keycloak/data/import:ro
     networks:
