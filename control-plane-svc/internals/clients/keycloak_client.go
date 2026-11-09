@@ -22,6 +22,12 @@ type AccessToken struct {
 	TimeOfIssuance time.Time
 }
 
+/*
+Keycloak client is not thread-safe. There's a race condition on the access token, because one thread might be try to read AccessToken,
+while another thread might be writing a new accessToken.
+
+Therefor, for now, each goroutine/thread, will own its own indipendent Keycloak Client
+*/
 type KeycloakClient struct {
 	AccessToken     *AccessToken
 	KeycloakBaseUrl string
@@ -32,6 +38,16 @@ type KeycloakClient struct {
 
 func NewKeycloakClient(KeycloakBaseUrl, ClientID, ClientSecret, RealmAlias string) *KeycloakClient {
 	return &KeycloakClient{nil, KeycloakBaseUrl, ClientID, ClientSecret, RealmAlias}
+}
+
+func NewKeycloakClientFromCfg(cfg RealmConfig) *KeycloakClient {
+	return &KeycloakClient{
+		nil,
+		cfg.BaseURL,
+		cfg.ClientID,
+		cfg.SecretEnv,
+		cfg.Id,
+	}
 }
 
 type AccessTokenDto struct {
@@ -77,7 +93,7 @@ func (kc *KeycloakClient) acquireNewAccessToken() error {
 		if err != nil {
 			return err
 		}
-		fmt.Println(string(body))
+		//fmt.Println(string(body))
 		var accessTokenDto AccessTokenDto
 		err = json.Unmarshal(body, &accessTokenDto)
 		if err != nil {
@@ -135,7 +151,7 @@ func (kc *KeycloakClient) GetAllUsers() ([]domain.User, error) {
 		if err != nil {
 			return result, err
 		}
-		fmt.Println(string(body))
+		//fmt.Println(string(body))
 		var keycloakUserResult KeycloakUsersDto
 		err = json.Unmarshal(body, &keycloakUserResult)
 		if err != nil {

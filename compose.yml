@@ -62,8 +62,6 @@ x-oauth2-proxy-base: &oauth2-proxy-base
   depends_on:
     keycloak:
       condition: service_healthy
-    load-balancer:
-      condition: service_started
     #state-kv:
       #condition: service_healthy
 
@@ -84,13 +82,7 @@ services:
           - auth.babylon.test
           - auth.dc-1.babylon.test
           - auth.dc-2.babylon.test
-    depends_on:
-      - api-gateway-1
-      - api-gateway-2
-      - keycloak
-      - keycloak-dc-1
-      - keycloak-dc-2
-  
+
   # Catches the central realm's verification and password-reset emails (lab only).
   # Inbox: http://localhost:8025
   mailpit:
@@ -135,9 +127,13 @@ services:
         aliases:
           - control-plane
     depends_on:
-      load-balancer:
-        condition: service_started
       control-plane-db:
+        condition: service_healthy
+      keycloak:
+        condition: service_healthy
+      keycloak-dc-1:
+        condition: service_healthy
+      keycloak-dc-2:
         condition: service_healthy
   
   control-plane-db:
@@ -151,7 +147,7 @@ services:
     volumes:
       - ./control-plane-db-data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U keycloak -d keycloak"]
+      test: ["CMD-SHELL", "pg_isready -U control-plane -d control-plane"]
       interval: 5s
       timeout: 5s
       retries: 5

@@ -6,11 +6,11 @@ import (
 	"control-plane-svc/internals/inbound/web"
 	"control-plane-svc/internals/service"
 	"control-plane-svc/internals/store"
+	"control-plane-svc/internals/utils"
 	"errors"
 	"fmt"
 	"log"
 	"net/http"
-	"os"
 	"strconv"
 )
 
@@ -29,46 +29,39 @@ type Configuration struct {
 	Timezone           string
 }
 
-func envOr(envName string) string {
-	envVarValue := os.Getenv(envName)
-	if envVarValue == "" {
-		panic(fmt.Errorf("Env variable %s is not set\n", envName))
-	}
-	return envVarValue
-}
-
 func LoadConfig() Configuration {
 	var cfg Configuration
-	cfg.Address = envOr("ADDRESS")
+	cfg.Address = utils.EnvOr("ADDRESS")
 
-	webPortString := envOr("WEB_PORT")
+	webPortString := utils.EnvOr("WEB_PORT")
 	webPortInt, err := strconv.Atoi(webPortString)
 	if err != nil {
 		panic(fmt.Errorf("Failed to convert env variable"))
 	}
 	cfg.WebPort = webPortInt
 
-	restPortString := envOr("REST_PORT")
+	restPortString := utils.EnvOr("REST_PORT")
 	restPortInt, err := strconv.Atoi(restPortString)
 	if err != nil {
 		panic(fmt.Errorf("Failed to convert env variable"))
 	}
 	cfg.RestPort = restPortInt
 
-	cfg.ControlPlaneConfig = envOr("CP_CONFIG")
-	cfg.ControlPlaneSecret = envOr("CONTROL_PLANE_SECRET")
-	cfg.PostgresHost = envOr("POSTGRES_HOST")
-	cfg.PostgresPort = envOr("POSTGRES_PORT")
-	cfg.PostgresUser = envOr("POSTGRES_USER")
-	cfg.PostgresDb = envOr("POSTGRES_DB")
-	cfg.PostgresPassword = envOr("POSTGRES_PASSWORD")
-	cfg.PostgresSSLMode = envOr("POSTGRES_SSL_MODE")
-	cfg.Timezone = envOr("TIMEZONE")
+	cfg.ControlPlaneConfig = utils.EnvOr("CP_CONFIG")
+	cfg.ControlPlaneSecret = utils.EnvOr("CONTROL_PLANE_SECRET")
+	cfg.PostgresHost = utils.EnvOr("POSTGRES_HOST")
+	cfg.PostgresPort = utils.EnvOr("POSTGRES_PORT")
+	cfg.PostgresUser = utils.EnvOr("POSTGRES_USER")
+	cfg.PostgresDb = utils.EnvOr("POSTGRES_DB")
+	cfg.PostgresPassword = utils.EnvOr("POSTGRES_PASSWORD")
+	cfg.PostgresSSLMode = utils.EnvOr("POSTGRES_SSL_MODE")
+	cfg.Timezone = utils.EnvOr("TIMEZONE")
 	return cfg
 }
 
 func main() {
 	cfg := LoadConfig()
+	realmsCfg := clients.LoadRealmConfig(cfg.ControlPlaneConfig)
 	log.Printf("Starting control plane")
 
 	postgresStore, err := store.NewPostgresStore(
@@ -85,9 +78,23 @@ func main() {
 		panic(err)
 	}
 
-	keycloakClientDC1 := clients.NewKeycloakClient("http://auth.dc-1.babylon.test", "control-plane", "c561cfee7acf06535d039fac719608026e11ee905b3c4ceedc28acfe8a927530", "dc-1")
+	/*ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()*/
+
+	//keycloakClientCentral := clients.NewKeycloakClient(realmsCfg["central"])
+	keycloakClientDC1 := clients.NewKeycloakClientFromCfg(realmsCfg["dc-1"])
+	keycloakClientDC2 := clients.NewKeycloakClientFromCfg(realmsCfg["dc-2"])
 
 	users, err := keycloakClientDC1.GetAllUsers()
+	if err != nil {
+		panic(err)
+	}
+
+	for _, user := range users {
+		fmt.Println(user.ToString())
+	}
+
+	users, err = keycloakClientDC2.GetAllUsers()
 	if err != nil {
 		panic(err)
 	}
