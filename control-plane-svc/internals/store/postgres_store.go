@@ -10,7 +10,8 @@ import (
 )
 
 type UserRealm struct {
-	Username   string `gorm:"primaryKey:uniqueIndex"`
+	ID         string `gorm:"primaryKey;type:uuid"`
+	Username   string `gorm:"uniqueIndex"`
 	Email      string `gorm:"uniqueIndex"`
 	RealmAlias string
 }
@@ -59,4 +60,24 @@ func (ps *PostgresStore) FindByEmail(ctx context.Context, email string) (*domain
 	}
 	return &domain.User{Username: user.Username, Email: user.Email, RealmAlias: user.RealmAlias}, nil
 
+}
+
+func (ps *PostgresStore) Save(ctx context.Context, user *domain.User) error {
+	userRealm := UserRealm{Username: user.Username, Email: user.Email, RealmAlias: user.RealmAlias}
+	err := gorm.G[UserRealm](ps.db).Create(ctx, &userRealm)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (ps *PostgresStore) Delete(ctx context.Context, user *domain.User) error {
+	rowsAffected, err := gorm.G[UserRealm](ps.db).Where("username = ?", user.Username).Delete(ctx)
+	if err != nil {
+		return err
+	}
+	if rowsAffected == 0 {
+		return fmt.Errorf("User not found: %s", user.Username)
+	}
+	return nil
 }

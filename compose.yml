@@ -146,6 +146,8 @@ services:
       POSTGRES_PASSWORD: ${CONTROL_PLANE_DB_PASSWORD:?run start.sh or copy .env.example to .env}
     volumes:
       - ./control-plane-db-data:/var/lib/postgresql/data
+    ports:
+      - "5433:5432" # lab only; remove with HTTPS
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U control-plane -d control-plane"]
       interval: 5s

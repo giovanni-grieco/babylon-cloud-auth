@@ -159,7 +159,7 @@ func (kc *KeycloakClient) GetAllUsers() ([]domain.User, error) {
 		}
 
 		for _, kur := range keycloakUserResult {
-			user := domain.User{Username: kur.Username, Email: kur.Email, RealmAlias: kc.RealmAlias}
+			user := domain.User{ID: kur.ID, Username: kur.Username, Email: kur.Email, RealmAlias: kc.RealmAlias}
 			result = append(result, user)
 		}
 		//at this point we're all good!
