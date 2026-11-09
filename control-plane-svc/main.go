@@ -85,11 +85,15 @@ func main() {
 		panic(err)
 	}
 
-	keycloakClientDC1 := clients.NewKeycloakClient("http://auth.dc-1.babylon.test", "control-plane", "c561cfee7acf06535d039fac719608026e11ee905b3c4ceedc28acfe8a927530")
+	keycloakClientDC1 := clients.NewKeycloakClient("http://auth.dc-1.babylon.test", "control-plane", "c561cfee7acf06535d039fac719608026e11ee905b3c4ceedc28acfe8a927530", "dc-1")
 
-	err = keycloakClientDC1.AcquireNewAccessToken()
+	users, err := keycloakClientDC1.GetAllUsers()
 	if err != nil {
 		panic(err)
+	}
+
+	for _, user := range users {
+		fmt.Println(user.ToString())
 	}
 
 	controlPlaneService := service.NewControlPlanceService(postgresStore)
