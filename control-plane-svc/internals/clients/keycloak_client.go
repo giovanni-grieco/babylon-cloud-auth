@@ -7,10 +7,12 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"sync"
 	"time"
 )
 
 const (
+	user_page_size    = 100
 	grant_type        = "client_credentials"
 	authorizationPath = "/realms/babylon/protocol/openid-connect/token"
 	usersPath         = "/admin/realms/babylon/users"
@@ -23,30 +25,31 @@ type AccessToken struct {
 }
 
 /*
-Keycloak client is not thread-safe. There's a race condition on the access token, because one thread might be try to read AccessToken,
-while another thread might be writing a new accessToken.
-
-Therefor, for now, each goroutine/thread, will own its own indipendent Keycloak Client
+Keycloak client is thread safe now!
 */
 type KeycloakClient struct {
+	mu              sync.Mutex
 	AccessToken     *AccessToken
 	KeycloakBaseUrl string
 	ClientID        string
 	ClientSecret    string
 	RealmAlias      string
+	httpClient      *http.Client
 }
 
 func NewKeycloakClient(KeycloakBaseUrl, ClientID, ClientSecret, RealmAlias string) *KeycloakClient {
-	return &KeycloakClient{nil, KeycloakBaseUrl, ClientID, ClientSecret, RealmAlias}
+	return &KeycloakClient{sync.Mutex{}, nil, KeycloakBaseUrl, ClientID, ClientSecret, RealmAlias, &http.Client{Timeout: 5 * time.Second}}
 }
 
 func NewKeycloakClientFromCfg(cfg RealmConfig) *KeycloakClient {
 	return &KeycloakClient{
+		sync.Mutex{},
 		nil,
 		cfg.BaseURL,
 		cfg.ClientID,
 		cfg.SecretEnv,
 		cfg.Id,
+		&http.Client{Timeout: 5 * time.Second},
 	}
 }
 
@@ -82,7 +85,7 @@ type KeycloakUserAccessDto struct {
 }
 
 func (kc *KeycloakClient) acquireNewAccessToken() error {
-	resp, err := http.PostForm(kc.KeycloakBaseUrl+authorizationPath, url.Values{"client_id": {kc.ClientID}, "client_secret": {kc.ClientSecret}, "grant_type": {grant_type}})
+	resp, err := kc.httpClient.PostForm(kc.KeycloakBaseUrl+authorizationPath, url.Values{"client_id": {kc.ClientID}, "client_secret": {kc.ClientSecret}, "grant_type": {grant_type}})
 	if err != nil {
 		return err
 	}
@@ -120,26 +123,37 @@ func (kc *KeycloakClient) isAccessTokenExpired() bool {
 	return true
 }
 
-func (kc *KeycloakClient) GetAllUsers() ([]domain.User, error) {
-	var result []domain.User
+func (kc *KeycloakClient) getBearerToken() (string, error) {
+	kc.mu.Lock()
+	defer kc.mu.Unlock()
+
 	if kc.isAccessTokenExpired() {
 		err := kc.acquireNewAccessToken()
 		if err != nil {
-			return result, err
+			return "", err
 		}
 	}
 
-	// we assume a valid access token has been acquire at this point
+	return kc.AccessToken.TokenString, nil
+}
 
-	request, err := http.NewRequest("GET", kc.KeycloakBaseUrl+usersPath, nil)
+func (kc *KeycloakClient) getAllUsersPage(first int) ([]domain.User, error) {
+	var result []domain.User
+	urlValues := url.Values{"max": {fmt.Sprintf("%d", user_page_size)}, "first": {fmt.Sprintf("%d", first)}}
+
+	request, err := http.NewRequest("GET", kc.KeycloakBaseUrl+usersPath+"?"+urlValues.Encode(), nil)
 	if err != nil {
 		return result, err
 	}
 
-	request.Header.Add("Authorization", "Bearer "+kc.AccessToken.TokenString)
+	bearerToken, err := kc.getBearerToken()
+	if err != nil {
+		return result, err
+	}
 
-	client := &http.Client{}
-	response, err := client.Do(request)
+	request.Header.Add("Authorization", "Bearer "+bearerToken)
+
+	response, err := kc.httpClient.Do(request)
 	if err != nil {
 		return result, err
 	}
@@ -162,11 +176,31 @@ func (kc *KeycloakClient) GetAllUsers() ([]domain.User, error) {
 			user := domain.User{ID: kur.ID, Username: kur.Username, Email: kur.Email, RealmAlias: kc.RealmAlias}
 			result = append(result, user)
 		}
-		//at this point we're all good!
 	} else {
 		return result, fmt.Errorf("Keycloak client did not manage to acquire users")
 	}
 
+	return result, nil
+}
+
+func (kc *KeycloakClient) GetAllUsers() ([]domain.User, error) {
+	var result []domain.User
+	first := 0
+	for {
+		keycloakUserResult, err := kc.getAllUsersPage(first)
+		if err != nil {
+			return result, err
+		}
+
+		result = append(result, keycloakUserResult...)
+
+		if len(keycloakUserResult) < user_page_size {
+			break // No more users to fetch, exit the loop
+		} else {
+			first += user_page_size // Move to the next page
+		}
+		//at this point we're all good!
+	}
 	return result, nil
 
 }
