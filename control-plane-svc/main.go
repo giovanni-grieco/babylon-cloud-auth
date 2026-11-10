@@ -1,17 +1,24 @@
 package main
 
 import (
+	"context"
 	"control-plane-svc/internals/clients"
 	"control-plane-svc/internals/inbound/rest"
 	"control-plane-svc/internals/inbound/web"
+	"control-plane-svc/internals/logging"
 	"control-plane-svc/internals/service"
 	"control-plane-svc/internals/store"
 	"control-plane-svc/internals/utils"
 	"errors"
 	"fmt"
 	"log"
+	"log/slog"
 	"net/http"
+	"os"
+	"os/signal"
 	"strconv"
+	"syscall"
+	"time"
 )
 
 type Configuration struct {
@@ -59,7 +66,27 @@ func LoadConfig() Configuration {
 	return cfg
 }
 
+// setupLogger installs a plain-text logger ("time [module] message") as the
+// process default. The level is read from LOG_LEVEL (debug|info|warn|error),
+// defaulting to info. The standard "log" package goes through it too.
+func setupLogger() {
+	var level slog.Level
+	if err := level.UnmarshalText([]byte(os.Getenv("LOG_LEVEL"))); err != nil {
+		level = slog.LevelInfo
+	}
+	logging.Setup(os.Stdout, level)
+}
+
 func main() {
+	setupLogger()
+
+	ctx := context.Background()
+
+	ctx, stop := signal.NotifyContext(ctx, os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
+	//g, gctx := errgroup.WithContext(ctx)
+
 	cfg := LoadConfig()
 	realmsCfg := clients.LoadRealmConfig(cfg.ControlPlaneConfig)
 	log.Printf("Starting control plane")
@@ -78,30 +105,22 @@ func main() {
 		panic(err)
 	}
 
-	/*ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer stop()*/
-
-	//keycloakClientCentral := clients.NewKeycloakClient(realmsCfg["central"])
 	keycloakClientDC1 := clients.NewKeycloakClientFromCfg(realmsCfg["dc-1"])
 	keycloakClientDC2 := clients.NewKeycloakClientFromCfg(realmsCfg["dc-2"])
 
-	users, err := keycloakClientDC1.GetAllUsers()
-	if err != nil {
-		panic(err)
-	}
+	var keycloakClients []*clients.KeycloakClient
+	keycloakClients = append(keycloakClients, keycloakClientDC1)
+	keycloakClients = append(keycloakClients, keycloakClientDC2)
 
-	for _, user := range users {
-		fmt.Println(user.ToString())
-	}
+	reconciliationService := service.NewReconciliationService(
+		time.Minute*1,
+		postgresStore,
+		keycloakClients,
+	)
 
-	users, err = keycloakClientDC2.GetAllUsers()
-	if err != nil {
-		panic(err)
-	}
+	reconciliationService.Reconcile(ctx)
 
-	for _, user := range users {
-		fmt.Println(user.ToString())
-	}
+	reconciliationService.StartLoop(ctx)
 
 	controlPlaneService := service.NewControlPlanceService(postgresStore)
 
@@ -125,8 +144,27 @@ func main() {
 		}
 	}()
 
-	log.Printf("web server started %s:%d\n", cfg.Address, cfg.WebPort)
-	if err := httpServer.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+	go func() {
+		log.Printf("web server started %s:%d\n", cfg.Address, cfg.WebPort)
+		if err := httpServer.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			log.Fatal(err)
+		}
+	}()
+
+	<-ctx.Done()
+
+	log.Println("Shutting down gracefully, press Ctrl+C again to force")
+
+	ctxShutdown, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	if err := httpServer.Shutdown(ctxShutdown); err != nil {
 		log.Fatal(err)
 	}
+
+	if err := restHttpServer.Shutdown(ctxShutdown); err != nil {
+		log.Fatal(err)
+	}
+
+	log.Println("Server exiting")
 }

@@ -3,7 +3,7 @@ package rest
 import (
 	"control-plane-svc/internals/service"
 	"encoding/json"
-	"fmt"
+	"log/slog"
 	"net/http"
 )
 
@@ -47,8 +47,7 @@ func (rip *RestInboundPort) DiscoverPostHandler(w http.ResponseWriter, r *http.R
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 		return
 	}
-	jsonMarshalled, err := json.Marshal(discoveryDto)
-	fmt.Printf("Discover Dto: %v\n", string(jsonMarshalled))
+	slog.DebugContext(ctx, "discover request", "login_hint", discoveryDto.LoginHint)
 	idpAlias, err := rip.ControlPlaneService.DiscoverRealm(ctx, discoveryDto.LoginHint)
 	if err != nil {
 		http.Error(w, "Not Found", http.StatusNotFound)

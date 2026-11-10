@@ -50,7 +50,7 @@ func (ps *PostgresStore) FindByUsername(ctx context.Context, username string) (*
 	if err != nil {
 		return nil, err
 	}
-	return &domain.User{Username: user.Username, Email: user.Email, RealmAlias: user.RealmAlias}, nil
+	return &domain.User{ID: user.ID, Username: user.Username, Email: user.Email, RealmAlias: user.RealmAlias}, nil
 }
 
 func (ps *PostgresStore) FindByEmail(ctx context.Context, email string) (*domain.User, error) {
@@ -58,12 +58,25 @@ func (ps *PostgresStore) FindByEmail(ctx context.Context, email string) (*domain
 	if err != nil {
 		return nil, err
 	}
-	return &domain.User{Username: user.Username, Email: user.Email, RealmAlias: user.RealmAlias}, nil
+	return &domain.User{ID: user.ID, Username: user.Username, Email: user.Email, RealmAlias: user.RealmAlias}, nil
 
 }
 
+func (ps *PostgresStore) FindByRealmAlias(ctx context.Context, realmAlias string) ([]*domain.User, error) {
+	users, err := gorm.G[UserRealm](ps.db).Where("realm_alias = ?", realmAlias).Find(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	var domainUsers []*domain.User
+	for _, user := range users {
+		domainUsers = append(domainUsers, &domain.User{ID: user.ID, Username: user.Username, Email: user.Email, RealmAlias: user.RealmAlias})
+	}
+	return domainUsers, nil
+}
+
 func (ps *PostgresStore) Save(ctx context.Context, user *domain.User) error {
-	userRealm := UserRealm{Username: user.Username, Email: user.Email, RealmAlias: user.RealmAlias}
+	userRealm := UserRealm{ID: user.ID, Username: user.Username, Email: user.Email, RealmAlias: user.RealmAlias}
 	err := gorm.G[UserRealm](ps.db).Create(ctx, &userRealm)
 	if err != nil {
 		return err
