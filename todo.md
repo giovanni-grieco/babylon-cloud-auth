@@ -1,4 +1,6 @@
-- Keycloak client | implementare caricamento totale degli utenti tramite paginazione. 
+- Keycloak client | implementare caricamento totale degli utenti tramite paginazione. (FATTO?)
+
+- Implementare il check di concorrenza tramite transazioni (FATTO?)
 
 - Keycloak client | implementare registrazione utente e cancellazione utente
 
