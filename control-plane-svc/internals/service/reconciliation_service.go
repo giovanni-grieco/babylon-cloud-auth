@@ -32,39 +32,44 @@ func (rs *ReconciliationService) Reconcile(ctx context.Context) error {
 		}
 
 		// Get the users from the control plane for this realm
-		controlPlaneRealmUsers, err := rs.UserStore.FindByRealmAlias(ctx, keycloakClient.RealmAlias)
-		if err != nil {
-			return err
-		}
+		err = rs.UserStore.InTx(ctx, func(ctx context.Context, txUserStore UserStore) error {
+			controlPlaneRealmUsers, err := txUserStore.FindByRealmAlias(ctx, keycloakClient.RealmAlias)
+			if err != nil {
+				return err
+			}
 
-		// Create a map for quick lookup of control plane users by username
-		controlPlaneUserToRemove := make(map[string]*domain.User)
-		for _, user := range controlPlaneRealmUsers {
-			controlPlaneUserToRemove[user.Username] = user
-		}
+			// Create a map for quick lookup of control plane users by username
+			controlPlaneUserToRemove := make(map[string]*domain.User)
+			for _, user := range controlPlaneRealmUsers {
+				controlPlaneUserToRemove[user.Username] = user
+			}
 
-		for _, user := range realmUsers {
-			// Check if the user exists in the control plane
-			if _, exists := controlPlaneUserToRemove[user.Username]; exists {
-				// User exists, remove from the map to indicate it's still present
-				delete(controlPlaneUserToRemove, user.Username)
-			} else {
-				// User does not exist in the control plane, add it
-				err := rs.UserStore.Save(ctx, &user)
+			for _, user := range realmUsers {
+				// Check if the user exists in the control plane
+				if _, exists := controlPlaneUserToRemove[user.Username]; exists {
+					// User exists, remove from the map to indicate it's still present
+					delete(controlPlaneUserToRemove, user.Username)
+				} else {
+					// User does not exist in the control plane, add it
+					err := txUserStore.Save(ctx, &user)
+					if err != nil {
+						return err
+					}
+				}
+			}
+
+			// Any remaining users in controlPlaneUserToRemove are no longer present in Keycloak and should be removed from the control plane
+			for _, userToRemove := range controlPlaneUserToRemove {
+				err := txUserStore.Delete(ctx, userToRemove)
 				if err != nil {
 					return err
 				}
 			}
+			return nil
+		})
+		if err != nil {
+			return err
 		}
-
-		// Any remaining users in controlPlaneUserToRemove are no longer present in Keycloak and should be removed from the control plane
-		for _, userToRemove := range controlPlaneUserToRemove {
-			err := rs.UserStore.Delete(ctx, userToRemove)
-			if err != nil {
-				return err
-			}
-		}
-
 		slog.InfoContext(ctx, "realm reconciliation completed", "realm", keycloakClient.RealmAlias)
 	}
 	slog.InfoContext(ctx, "reconciliation completed")

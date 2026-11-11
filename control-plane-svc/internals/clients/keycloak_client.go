@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"sync"
@@ -12,7 +13,7 @@ import (
 )
 
 const (
-	user_page_size    = 100
+	user_page_size    = 5
 	grant_type        = "client_credentials"
 	authorizationPath = "/realms/babylon/protocol/openid-connect/token"
 	usersPath         = "/admin/realms/babylon/users"
@@ -173,7 +174,7 @@ func (kc *KeycloakClient) getAllUsersPage(first int) ([]domain.User, error) {
 		}
 
 		for _, kur := range keycloakUserResult {
-			user := domain.User{ID: kur.ID, Username: kur.Username, Email: kur.Email, RealmAlias: kc.RealmAlias}
+			user := domain.User{RealmID: kur.ID, Username: kur.Username, Email: kur.Email, RealmAlias: kc.RealmAlias}
 			result = append(result, user)
 		}
 	} else {
@@ -187,6 +188,7 @@ func (kc *KeycloakClient) GetAllUsers() ([]domain.User, error) {
 	var result []domain.User
 	first := 0
 	for {
+		slog.Info("fetching users from keycloak", "realm", kc.RealmAlias, "first", first, "max", user_page_size)
 		keycloakUserResult, err := kc.getAllUsersPage(first)
 		if err != nil {
 			return result, err

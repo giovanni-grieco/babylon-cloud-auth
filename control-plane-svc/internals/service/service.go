@@ -28,7 +28,7 @@ func (cps *ControlPlaneService) DiscoverRealm(ctx context.Context, userHint stri
 	return "", fmt.Errorf("realm not found for user hint: %s", userHint)
 }
 
-func (cps *ControlPlaneService) RegisterUser(ctx context.Context, username, email, temporaryPassword string) error {
+func (cps *ControlPlaneService) RegisterUser(ctx context.Context, username, email, temporaryPassword, realmAlias string) error {
 	// TODO: Implement user registration logic
 	slog.InfoContext(ctx, fmt.Sprintf("registering user: %s - %s - %s", username, email, temporaryPassword))
 	return nil

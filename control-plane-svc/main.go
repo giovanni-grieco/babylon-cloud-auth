@@ -113,7 +113,7 @@ func main() {
 	keycloakClients = append(keycloakClients, keycloakClientDC2)
 
 	reconciliationService := service.NewReconciliationService(
-		time.Minute*1,
+		time.Second*10,
 		postgresStore,
 		keycloakClients,
 	)
