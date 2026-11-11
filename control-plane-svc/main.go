@@ -122,7 +122,13 @@ func main() {
 
 	reconciliationService.StartLoop(ctx)
 
-	controlPlaneService := service.NewControlPlanceService(postgresStore)
+	realm2KeycloakClients := make(map[string]*clients.KeycloakClient)
+
+	for _, kc := range keycloakClients {
+		realm2KeycloakClients[kc.RealmAlias] = kc
+	}
+
+	controlPlaneService := service.NewControlPlanceService(postgresStore, realm2KeycloakClients)
 
 	webInboundPort := web.NewWebInboundPort(cfg.Address, cfg.WebPort, controlPlaneService)
 	restInboundPort := rest.NewRestInboundPort(cfg.Address, cfg.RestPort, controlPlaneService)

@@ -23,7 +23,7 @@ func NewReconciliationService(reconciliationPeriod time.Duration, userStore User
 }
 
 func (rs *ReconciliationService) BootstrapReconciliation(ctx context.Context) error {
-	slog.InfoContext(ctx, "starting reconciliation")
+	slog.InfoContext(ctx, "Executing bootstrap reconciliation")
 	for _, keycloakClient := range rs.KeycloakClients {
 		slog.InfoContext(ctx, "reconciling realm users", "realm", keycloakClient.RealmAlias)
 		realmUsers, err := keycloakClient.GetAllUsers()
@@ -45,7 +45,7 @@ func (rs *ReconciliationService) BootstrapReconciliation(ctx context.Context) er
 					delete(controlPlaneUserToRemove, user.Username)
 				} else {
 					user.State = domain.CREATED // WE ASSUME THE USER IS CREATED
-					err := txUserStore.Save(ctx, &user)
+					_, err := txUserStore.Save(ctx, &user)
 					if err != nil {
 						return err
 					}
@@ -56,10 +56,28 @@ func (rs *ReconciliationService) BootstrapReconciliation(ctx context.Context) er
 		if err != nil {
 			return err
 		}
-		slog.InfoContext(ctx, "realm reconciliation completed", "realm", keycloakClient.RealmAlias)
+		slog.InfoContext(ctx, "Bootstrap realm reconciliation completed", "realm", keycloakClient.RealmAlias)
 	}
-	slog.InfoContext(ctx, "reconciliation completed")
+	slog.InfoContext(ctx, "Bootstrap reconciliation completed")
 	return nil
+}
+
+func (rs *ReconciliationService) reconcileUsersPendingCreation(ctx context.Context) error {
+	return nil
+}
+
+func (rs *ReconciliationService) reconcileUsersPendingDeletion(ctx context.Context) error {
+	return nil
+}
+
+// Si assicura di trovare le utenze che stanno in stati transienti e si assicura che viene applicata
+func (rs *ReconciliationService) Reconcile(ctx context.Context) error {
+	err := rs.reconcileUsersPendingCreation(ctx)
+	if err != nil {
+		return err
+	}
+	err = rs.reconcileUsersPendingDeletion(ctx)
+	return err
 }
 
 func (rs *ReconciliationService) StartLoop(ctx context.Context) {
@@ -71,9 +89,7 @@ func (rs *ReconciliationService) StartLoop(ctx context.Context) {
 		for {
 			select {
 			case <-ticker.C:
-				//err := rs.Reconcile(ctx)
-				var err error
-				err = nil
+				err := rs.Reconcile(ctx)
 				slog.InfoContext(ctx, "execute reconciliation loop")
 				if err != nil {
 					slog.ErrorContext(ctx, "reconciliation failed", "error", err)

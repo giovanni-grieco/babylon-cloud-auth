@@ -206,3 +206,11 @@ func (kc *KeycloakClient) GetAllUsers() ([]domain.User, error) {
 	return result, nil
 
 }
+
+func (kc *KeycloakClient) RegisterUser(user *domain.User) error {
+	return nil
+}
+
+func (kc *KeycloakClient) DeleteUser(user *domain.User) error {
+	return nil
+}

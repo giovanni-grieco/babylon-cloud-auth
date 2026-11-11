@@ -13,7 +13,7 @@ import (
 
 type UserRealm struct {
 	ID         string `gorm:"primaryKey;type:uuid;not null;default:gen_random_uuid()"`
-	RealmID    string `gorm:"unique;not null;type:varchar(100);default:null;uniqueIndex"`
+	RealmID    string `gorm:"type:varchar(100);default:null;index"`
 	Username   string `gorm:"unique;not null;type:varchar(100);default:null;uniqueIndex"`
 	Email      string `gorm:"unique;not null;type:varchar(100);default:null;uniqueIndex"`
 	RealmAlias string `gorm:"not null;type:varchar(100);default:null"`
@@ -85,6 +85,11 @@ func (ps *PostgresStore) InTx(ctx context.Context, fn func(ctx context.Context, 
 	})
 }
 
+func (ps *PostgresStore) Find(ctx context.Context, id string) (*domain.User, error) {
+	userRealm, err := gorm.G[UserRealm](ps.db).Where("id = ?", id).First(ctx)
+	return FromUserRealm(&userRealm), err
+}
+
 func (ps *PostgresStore) FindByUsername(ctx context.Context, username string) (*domain.User, error) {
 	user, err := gorm.G[UserRealm](ps.db).Where("username = ?", username).First(ctx)
 	if err != nil {
@@ -115,36 +120,36 @@ func (ps *PostgresStore) FindByRealmAlias(ctx context.Context, realmAlias string
 	return domainUsers, nil
 }
 
-func (ps *PostgresStore) Save(ctx context.Context, user *domain.User) error {
+func (ps *PostgresStore) Save(ctx context.Context, user *domain.User) (*domain.User, error) {
 	userRealm := ToUserRealm(user)
 	err := gorm.G[UserRealm](ps.db).Create(ctx, userRealm)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	return nil
+	return FromUserRealm(userRealm), nil
 }
 
-func (ps *PostgresStore) Update(ctx context.Context, user *domain.User) error {
+func (ps *PostgresStore) Update(ctx context.Context, user *domain.User) (*domain.User, error) {
 	userRealm := ToUserRealm(user)
 	rowsAffected, err := gorm.G[UserRealm](ps.db).Where("id = ?", user.ID).Select("*").Updates(ctx, *userRealm)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	if rowsAffected == 0 {
-		return fmt.Errorf("No rows affected")
+		return nil, fmt.Errorf("No rows affected")
 	}
 
-	return nil
+	return FromUserRealm(userRealm), nil
 }
 
-func (ps *PostgresStore) Delete(ctx context.Context, user *domain.User) error {
-	rowsAffected, err := gorm.G[UserRealm](ps.db).Where("id = ?", user.ID).Delete(ctx)
+func (ps *PostgresStore) Delete(ctx context.Context, id string) error {
+	rowsAffected, err := gorm.G[UserRealm](ps.db).Where("id = ?", id).Delete(ctx)
 	if err != nil {
 		return err
 	}
 	if rowsAffected == 0 {
-		return fmt.Errorf("User not found: %s", user.Username)
+		return fmt.Errorf("User with id: %s not found", id)
 	}
 	return nil
 }
