@@ -118,7 +118,7 @@ func main() {
 		keycloakClients,
 	)
 
-	reconciliationService.Reconcile(ctx)
+	reconciliationService.BootstrapReconciliation(ctx)
 
 	reconciliationService.StartLoop(ctx)
 

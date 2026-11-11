@@ -17,6 +17,7 @@ type UserRealm struct {
 	Username   string `gorm:"unique;not null;type:varchar(100);default:null;uniqueIndex"`
 	Email      string `gorm:"unique;not null;type:varchar(100);default:null;uniqueIndex"`
 	RealmAlias string `gorm:"not null;type:varchar(100);default:null"`
+	State      int    `gorm:"default:0"`
 }
 
 func FromUserRealm(userRealm *UserRealm) *domain.User {
@@ -26,6 +27,7 @@ func FromUserRealm(userRealm *UserRealm) *domain.User {
 		Username:   userRealm.Username,
 		Email:      userRealm.Email,
 		RealmAlias: userRealm.RealmAlias,
+		State:      userRealm.State,
 	}
 }
 
@@ -36,6 +38,7 @@ func ToUserRealm(user *domain.User) *UserRealm {
 		Username:   user.Username,
 		Email:      user.Email,
 		RealmAlias: user.RealmAlias,
+		State:      user.State,
 	}
 }
 
@@ -121,6 +124,20 @@ func (ps *PostgresStore) Save(ctx context.Context, user *domain.User) error {
 	return nil
 }
 
+func (ps *PostgresStore) Update(ctx context.Context, user *domain.User) error {
+	userRealm := ToUserRealm(user)
+	rowsAffected, err := gorm.G[UserRealm](ps.db).Where("id = ?", user.ID).Select("*").Updates(ctx, *userRealm)
+	if err != nil {
+		return err
+	}
+
+	if rowsAffected == 0 {
+		return fmt.Errorf("No rows affected")
+	}
+
+	return nil
+}
+
 func (ps *PostgresStore) Delete(ctx context.Context, user *domain.User) error {
 	rowsAffected, err := gorm.G[UserRealm](ps.db).Where("id = ?", user.ID).Delete(ctx)
 	if err != nil {
@@ -129,5 +146,5 @@ func (ps *PostgresStore) Delete(ctx context.Context, user *domain.User) error {
 	if rowsAffected == 0 {
 		return fmt.Errorf("User not found: %s", user.Username)
 	}
-	return nil ///COMMMENTS
+	return nil
 }

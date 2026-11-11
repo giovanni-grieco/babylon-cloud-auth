@@ -11,5 +11,6 @@ type UserStore interface {
 	FindByRealmAlias(ctx context.Context, realmAlias string) ([]*domain.User, error)
 	InTx(ctx context.Context, fn func(ctx context.Context, store UserStore) error) error
 	Save(ctx context.Context, user *domain.User) error //create and update
+	Update(ctx context.Context, user *domain.User) error
 	Delete(ctx context.Context, user *domain.User) error
 }

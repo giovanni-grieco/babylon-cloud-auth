@@ -22,7 +22,7 @@ func NewReconciliationService(reconciliationPeriod time.Duration, userStore User
 	}
 }
 
-func (rs *ReconciliationService) Reconcile(ctx context.Context) error {
+func (rs *ReconciliationService) BootstrapReconciliation(ctx context.Context) error {
 	slog.InfoContext(ctx, "starting reconciliation")
 	for _, keycloakClient := range rs.KeycloakClients {
 		slog.InfoContext(ctx, "reconciling realm users", "realm", keycloakClient.RealmAlias)
@@ -30,39 +30,25 @@ func (rs *ReconciliationService) Reconcile(ctx context.Context) error {
 		if err != nil {
 			return err
 		}
-
-		// Get the users from the control plane for this realm
 		err = rs.UserStore.InTx(ctx, func(ctx context.Context, txUserStore UserStore) error {
 			controlPlaneRealmUsers, err := txUserStore.FindByRealmAlias(ctx, keycloakClient.RealmAlias)
 			if err != nil {
 				return err
 			}
-
-			// Create a map for quick lookup of control plane users by username
 			controlPlaneUserToRemove := make(map[string]*domain.User)
 			for _, user := range controlPlaneRealmUsers {
 				controlPlaneUserToRemove[user.Username] = user
 			}
 
 			for _, user := range realmUsers {
-				// Check if the user exists in the control plane
 				if _, exists := controlPlaneUserToRemove[user.Username]; exists {
-					// User exists, remove from the map to indicate it's still present
 					delete(controlPlaneUserToRemove, user.Username)
 				} else {
-					// User does not exist in the control plane, add it
+					user.State = domain.CREATED // WE ASSUME THE USER IS CREATED
 					err := txUserStore.Save(ctx, &user)
 					if err != nil {
 						return err
 					}
-				}
-			}
-
-			// Any remaining users in controlPlaneUserToRemove are no longer present in Keycloak and should be removed from the control plane
-			for _, userToRemove := range controlPlaneUserToRemove {
-				err := txUserStore.Delete(ctx, userToRemove)
-				if err != nil {
-					return err
 				}
 			}
 			return nil
@@ -85,7 +71,10 @@ func (rs *ReconciliationService) StartLoop(ctx context.Context) {
 		for {
 			select {
 			case <-ticker.C:
-				err := rs.Reconcile(ctx)
+				//err := rs.Reconcile(ctx)
+				var err error
+				err = nil
+				slog.InfoContext(ctx, "execute reconciliation loop")
 				if err != nil {
 					slog.ErrorContext(ctx, "reconciliation failed", "error", err)
 				}
