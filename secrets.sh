@@ -7,7 +7,6 @@ add_secret() {
     grep -q "^$1=" .env || echo "$1=$(openssl rand -hex "$2")" >> .env
 }
 
-umask 077
 touch .env
 
 add_secret KC_DB_PASSWORD 24
