@@ -11,6 +11,25 @@ const (
 	FAILED_DELETION  = 5
 )
 
+func StateToString(state int) string {
+	switch state {
+	case UNKNOWN:
+		return "UNKNOWN"
+	case PENDING_CREATION:
+		return "PENDING_CREATION"
+	case CREATED:
+		return "CREATED"
+	case FAILED_CREATION:
+		return "FAILED_CREATION"
+	case PENDING_DELETION:
+		return "PENDING_DELETION"
+	case FAILED_DELETION:
+		return "FAILED_DELETION"
+	default:
+		return "INVALID_STATE"
+	}
+}
+
 type User struct {
 	ID         string
 	RealmID    string

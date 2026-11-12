@@ -34,36 +34,39 @@ func (cps *ControlPlaneService) DiscoverRealm(ctx context.Context, userHint stri
 func (cps *ControlPlaneService) RegisterUser(ctx context.Context, username, email, temporaryPassword, realmAlias string) error {
 	// TODO: Implement user registration logic
 	slog.InfoContext(ctx, fmt.Sprintf("registering user: %s - %s - %s", username, email, realmAlias))
-	user := &domain.User{
-		Username:   username,
-		Email:      email,
-		RealmAlias: realmAlias,
-		State:      domain.PENDING_CREATION, // creiamo subito la riga per dire che qualcosa va creato. Se avremo successo, verrà cambiato.
-	}
+	err := cps.userStore.InTx(ctx, func(ctx context.Context, userStore UserStore) error {
+		user := &domain.User{
+			Username:   username,
+			Email:      email,
+			RealmAlias: realmAlias,
+			State:      domain.CREATED, // creiamo subito la riga per dire che qualcosa va creato. Se avremo successo, verrà cambiato.
+		}
 
-	user, err := cps.userStore.Save(ctx, user)
-	if err != nil {
+		user, err := cps.userStore.Save(ctx, user)
+		if err != nil {
+			return err
+		}
+
+		// Issue a creation on keycloak
+		keycloak, ok := cps.realm2KeycloakClients[realmAlias]
+		if !ok {
+			return fmt.Errorf("Realm Alias \"%s\" not mapped to an existing Keycloak client", realmAlias)
+		}
+
+		err = keycloak.RegisterUser(user)
+		if err != nil {
+			return fmt.Errorf("Keycloak client err: %v", err)
+		}
+		// change the user status to created
+		user.State = domain.CREATED
+		user, err = cps.userStore.Update(ctx, user)
+		if err != nil {
+			return fmt.Errorf("Failure to update user: %v", err)
+		}
+
 		return err
-	}
-
-	// Issue a creation on keycloak
-	keycloak, ok := cps.realm2KeycloakClients[realmAlias]
-	if !ok {
-		return fmt.Errorf("Realm Alias \"%s\" not mapped to an existing Keycloak client", realmAlias)
-	}
-
-	err = keycloak.RegisterUser(user)
-	if err != nil {
-		return fmt.Errorf("Keycloak client err: %v", err)
-	}
-	// change the user status to created
-	user.State = domain.CREATED
-	user, err = cps.userStore.Update(ctx, user)
-	if err != nil {
-		return fmt.Errorf("Failure to update user: %v", err)
-	}
-
-	return nil
+	})
+	return err
 }
 
 func (cps *ControlPlaneService) UpdateUser(ctx context.Context, username, email string) error {
@@ -76,32 +79,37 @@ func (cps *ControlPlaneService) DeleteUser(ctx context.Context, id string) error
 	// TODO: Implement user delete logic
 	slog.InfoContext(ctx, fmt.Sprintf("deleting user: %s", id))
 
-	user, err := cps.userStore.Find(ctx, id)
-	//err := cps.DeleteUser(ctx, id)
-	if err != nil {
-		return err
-	}
+	err := cps.userStore.InTx(ctx, func(ctx context.Context, userStore UserStore) error {
+		user, err := userStore.Find(ctx, id)
+		if err != nil {
+			return err
+		}
 
-	user.State = domain.PENDING_DELETION
-	user, err = cps.userStore.Update(ctx, user)
-	if err != nil {
-		return err
-	}
+		if user.State != domain.CREATED {
+			return fmt.Errorf("Can't delete user that is still in STATE=%s", domain.StateToString(user.State))
+		}
 
-	keycloak, ok := cps.realm2KeycloakClients[user.RealmAlias]
-	if !ok {
-		return fmt.Errorf("Realm Alias \"%s\" not mapped to an existing Keycloak client", user.RealmAlias)
-	}
+		user.State = domain.PENDING_DELETION
+		user, err = userStore.Update(ctx, user)
+		if err != nil {
+			return err
+		}
 
-	err = keycloak.DeleteUser(user)
-	if err != nil {
-		return err
-	}
+		keycloak, ok := cps.realm2KeycloakClients[user.RealmAlias]
+		if !ok {
+			return fmt.Errorf("Realm Alias \"%s\" not mapped to an existing Keycloak client", user.RealmAlias)
+		}
 
-	err = cps.userStore.Delete(ctx, user.ID)
-	if err != nil {
-		return err
-	}
+		err = keycloak.DeleteUser(user)
+		if err != nil {
+			return err
+		}
 
-	return nil
+		err = userStore.Delete(ctx, user.ID)
+		if err != nil {
+			return err
+		}
+		return nil
+	})
+	return err
 }

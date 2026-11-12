@@ -89,7 +89,7 @@ func (rs *ReconciliationService) StartLoop(ctx context.Context) {
 		for {
 			select {
 			case <-ticker.C:
-				err := rs.Reconcile(ctx)
+				err := rs.BootstrapReconciliation(ctx)
 				slog.InfoContext(ctx, "execute reconciliation loop")
 				if err != nil {
 					slog.ErrorContext(ctx, "reconciliation failed", "error", err)
