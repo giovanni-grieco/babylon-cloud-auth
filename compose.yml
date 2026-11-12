@@ -65,6 +65,88 @@ x-oauth2-proxy-base: &oauth2-proxy-base
     #state-kv:
       #condition: service_healthy
 
+x-control-plane-svc-base: &control-plane-svc-base
+  build:
+    context: .
+    dockerfile: ./control-plane-svc/Dockerfile
+  # Exits when the database isn't reachable yet (Patroni is still electing a
+  # primary) and comes back once it is.
+  restart: unless-stopped
+  environment:
+    ADDRESS:    0.0.0.0
+    WEB_PORT:   "8080"
+    REST_PORT:  "8081"
+    CP_CONFIG: /etc/control-plane/config.json
+    CONTROL_PLANE_SECRET: ${CONTROL_PLANE_SECRET:?run start.sh or copy .env.example to .env}
+    CENTRAL_CONTROL_PLANE_KEYCLOAK_CLIENT_SECRET: ${CENTRAL_CONTROL_PLANE_KEYCLOAK_CLIENT_SECRET:? run start.sh or copy .env.example to .env}
+    DC1_CONTROL_PLANE_KEYCLOAK_CLIENT_SECRET: ${DC1_CONTROL_PLANE_KEYCLOAK_CLIENT_SECRET:?run start.sh or copy .env.example to .env}
+    DC2_CONTROL_PLANE_KEYCLOAK_CLIENT_SECRET: ${DC2_CONTROL_PLANE_KEYCLOAK_CLIENT_SECRET:?run start.sh or copy .env.example to .env}
+    POSTGRES_HOST: control-plane-db  # control-plane-db-lb, always the primary
+    POSTGRES_PORT: 5432
+    POSTGRES_USER: control-plane
+    POSTGRES_DB: control-plane
+    POSTGRES_PASSWORD: ${CONTROL_PLANE_DB_PASSWORD:?run start.sh or copy .env.example to .env}
+    POSTGRES_SSL_MODE: disable
+    TZ: Europe/Rome
+    TIMEZONE: Europe/Rome
+  volumes:
+    - ./control-plane-svc/config.json:/etc/control-plane/config.json:ro
+  networks:
+    - edge-net              # reaches every Keycloak through the load balancer, like the browser
+    - control-plane-db-net  # reaches the database load balancer
+  depends_on:
+    control-plane-db-lb:
+      condition: service_started
+    keycloak:
+      condition: service_healthy
+    keycloak-dc-1:
+      condition: service_healthy
+    keycloak-dc-2:
+      condition: service_healthy
+
+x-control-plane-etcd-env: &control-plane-etcd-env
+  ETCD_DATA_DIR: /etcd-data
+  ETCD_LISTEN_CLIENT_URLS: http://0.0.0.0:2379
+  ETCD_LISTEN_PEER_URLS: http://0.0.0.0:2380
+  ETCD_INITIAL_CLUSTER: control-plane-etcd-1=http://control-plane-etcd-1:2380,control-plane-etcd-2=http://control-plane-etcd-2:2380,control-plane-etcd-3=http://control-plane-etcd-3:2380
+  ETCD_INITIAL_CLUSTER_STATE: new
+  ETCD_INITIAL_CLUSTER_TOKEN: control-plane-etcd
+
+x-control-plane-etcd-base: &control-plane-etcd-base
+  image: quay.io/coreos/etcd:v3.5.21
+  command: ["etcd"]
+  restart: unless-stopped
+  networks:
+    - control-plane-db-net
+
+x-control-plane-db-env: &control-plane-db-env
+  PATRONI_SUPERUSER_USERNAME: postgres
+  PATRONI_SUPERUSER_PASSWORD: ${CONTROL_PLANE_DB_SUPERUSER_PASSWORD:?run start.sh or copy .env.example to .env}
+  PATRONI_REPLICATION_USERNAME: replicator
+  PATRONI_REPLICATION_PASSWORD: ${CONTROL_PLANE_DB_REPLICATION_PASSWORD:?run start.sh or copy .env.example to .env}
+  # Read by post_bootstrap.sh when the cluster is first created
+  CONTROL_PLANE_DB_USER: control-plane
+  CONTROL_PLANE_DB_NAME: control-plane
+  CONTROL_PLANE_DB_PASSWORD: ${CONTROL_PLANE_DB_PASSWORD:?run start.sh or copy .env.example to .env}
+  TZ: Europe/Rome
+
+x-control-plane-db-base: &control-plane-db-base
+  build: ./control-plane-db
+  restart: unless-stopped
+  healthcheck:
+    # Patroni's /health is 200 while Postgres runs, as primary or replica.
+    test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8008/health', timeout=3)"]
+    interval: 7s
+    timeout: 5s
+    retries: 10
+    start_period: 30s
+  networks:
+    - control-plane-db-net
+  depends_on:
+    - control-plane-etcd-1
+    - control-plane-etcd-2
+    - control-plane-etcd-3
+
 services:
   # 0. LOAD BALANCER (public entrypoint)
   load-balancer:
@@ -95,69 +177,111 @@ services:
   # Operator console for provisioning B2B accounts into the DC realms, at
   # http://control-plane.babylon.test. It has no login of its own; nginx only
   # lets this machine reach it.
-  control-plane-svc:
-    build:
-      context: .
-      dockerfile: ./control-plane-svc/Dockerfile
-    container_name: control-plane-svc
-    environment:
-      ADDRESS:    0.0.0.0
-      WEB_PORT:   "8080"
-      REST_PORT:  "8081"
-      CP_CONFIG: /etc/control-plane/config.json
-      CONTROL_PLANE_SECRET: ${CONTROL_PLANE_SECRET:?run start.sh or copy .env.example to .env}
-      CENTRAL_CONTROL_PLANE_KEYCLOAK_CLIENT_SECRET: ${CENTRAL_CONTROL_PLANE_KEYCLOAK_CLIENT_SECRET:? run start.sh or copy .env.example to .env}
-      DC1_CONTROL_PLANE_KEYCLOAK_CLIENT_SECRET: ${DC1_CONTROL_PLANE_KEYCLOAK_CLIENT_SECRET:?run start.sh or copy .env.example to .env}
-      DC2_CONTROL_PLANE_KEYCLOAK_CLIENT_SECRET: ${DC2_CONTROL_PLANE_KEYCLOAK_CLIENT_SECRET:?run start.sh or copy .env.example to .env}
-      POSTGRES_HOST: control-plane-db
-      POSTGRES_PORT: 5432
-      POSTGRES_USER: control-plane
-      POSTGRES_DB: control-plane
-      POSTGRES_PASSWORD: ${CONTROL_PLANE_DB_PASSWORD:?run start.sh or copy .env.example to .env}
-      POSTGRES_SSL_MODE: disable
-      TZ: Europe/Rome
-      TIMEZONE: Europe/Rome
-    ports:
-      - "127.0.0.1:9081:8081"
-      - "127.0.0.1:9080:8080"
-    volumes:
-      - ./control-plane-svc/config.json:/etc/control-plane/config.json:ro
-    networks:
-      edge-net: # reaches every Keycloak through the load balancer, like the browser
-        aliases:
-          - control-plane
-    depends_on:
-      control-plane-db:
-        condition: service_healthy
-      keycloak:
-        condition: service_healthy
-      keycloak-dc-1:
-        condition: service_healthy
-      keycloak-dc-2:
-        condition: service_healthy
-  
-  control-plane-db:
-    container_name: control-plane-db
-    image: postgres:17
-    environment:
-      POSTGRES_USER: control-plane
-      POSTGRES_DB: control-plane
-      TZ: Europe/Rome
-      POSTGRES_PASSWORD: ${CONTROL_PLANE_DB_PASSWORD:?run start.sh or copy .env.example to .env}
-    volumes:
-      - ./control-plane-db-data:/var/lib/postgresql/data
-    ports:
-      - "5433:5432" # lab only; remove with HTTPS
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U control-plane -d control-plane"]
-      interval: 7s
-      timeout: 10s
-      retries: 5
-    networks:
-      edge-net: # reaches every Keycloak through the load balancer, like the browser
-        aliases:
-          - control-plane-db
+  #
+  # Two replicas behind HAProxy (control-plane-lb). They keep no state of their
+  # own: everything is in Postgres, and the reconciler claims rows with
+  # SELECT ... FOR UPDATE SKIP LOCKED, so both can run it at once.
+  control-plane-svc-1:
+    <<: *control-plane-svc-base
+    container_name: control-plane-svc-1
 
+  control-plane-svc-2:
+    <<: *control-plane-svc-base
+    container_name: control-plane-svc-2
+
+  control-plane-lb:
+    image: haproxy:3.2-alpine
+    container_name: control-plane-lb
+    volumes:
+      - ./control-plane-lb/haproxy.cfg:/usr/local/etc/haproxy/haproxy.cfg:ro
+    ports:
+      - "127.0.0.1:9080:8080"  # console
+      - "127.0.0.1:9081:8081"  # REST API
+      - "127.0.0.1:8404:8404"  # HAProxy stats
+    networks:
+      edge-net:
+        aliases:
+          - control-plane  # nginx and Keycloak's HRD oracle URL point here
+    depends_on:
+      - control-plane-svc-1
+      - control-plane-svc-2
+
+  # Control plane database: two Postgres nodes run by Patroni, one primary and
+  # one hot standby in synchronous replication. etcd (three members, so a
+  # majority survives one loss) holds the leader lock that decides which node
+  # is the primary; with only two voters a network split could elect two.
+  control-plane-etcd-1:
+    <<: *control-plane-etcd-base
+    container_name: control-plane-etcd-1
+    environment:
+      <<: *control-plane-etcd-env
+      ETCD_NAME: control-plane-etcd-1
+      ETCD_ADVERTISE_CLIENT_URLS: http://control-plane-etcd-1:2379
+      ETCD_INITIAL_ADVERTISE_PEER_URLS: http://control-plane-etcd-1:2380
+    volumes:
+      - control-plane-etcd-1-data:/etcd-data
+
+  control-plane-etcd-2:
+    <<: *control-plane-etcd-base
+    container_name: control-plane-etcd-2
+    environment:
+      <<: *control-plane-etcd-env
+      ETCD_NAME: control-plane-etcd-2
+      ETCD_ADVERTISE_CLIENT_URLS: http://control-plane-etcd-2:2379
+      ETCD_INITIAL_ADVERTISE_PEER_URLS: http://control-plane-etcd-2:2380
+    volumes:
+      - control-plane-etcd-2-data:/etcd-data
+
+  control-plane-etcd-3:
+    <<: *control-plane-etcd-base
+    container_name: control-plane-etcd-3
+    environment:
+      <<: *control-plane-etcd-env
+      ETCD_NAME: control-plane-etcd-3
+      ETCD_ADVERTISE_CLIENT_URLS: http://control-plane-etcd-3:2379
+      ETCD_INITIAL_ADVERTISE_PEER_URLS: http://control-plane-etcd-3:2380
+    volumes:
+      - control-plane-etcd-3-data:/etcd-data
+
+  control-plane-db-1:
+    <<: *control-plane-db-base
+    container_name: control-plane-db-1
+    environment:
+      <<: *control-plane-db-env
+      PATRONI_NAME: control-plane-db-1
+      PATRONI_RESTAPI_CONNECT_ADDRESS: control-plane-db-1:8008
+      PATRONI_POSTGRESQL_CONNECT_ADDRESS: control-plane-db-1:5432
+    volumes:
+      - control-plane-db-1-data:/var/lib/postgresql/data
+
+  control-plane-db-2:
+    <<: *control-plane-db-base
+    container_name: control-plane-db-2
+    environment:
+      <<: *control-plane-db-env
+      PATRONI_NAME: control-plane-db-2
+      PATRONI_RESTAPI_CONNECT_ADDRESS: control-plane-db-2:8008
+      PATRONI_POSTGRESQL_CONNECT_ADDRESS: control-plane-db-2:5432
+    volumes:
+      - control-plane-db-2-data:/var/lib/postgresql/data
+
+  # Always forwards :5432 to whichever node Patroni says is the primary.
+  control-plane-db-lb:
+    image: haproxy:3.2-alpine
+    container_name: control-plane-db-lb
+    volumes:
+      - ./control-plane-db/haproxy.cfg:/usr/local/etc/haproxy/haproxy.cfg:ro
+    ports:
+      - "5433:5432"            # primary, read-write (lab only; remove with HTTPS)
+      - "127.0.0.1:5434:5433"  # replicas, read-only
+      - "127.0.0.1:8405:8404"  # HAProxy stats
+    networks:
+      control-plane-db-net:
+        aliases:
+          - control-plane-db  # POSTGRES_HOST of the control plane
+    depends_on:
+      - control-plane-db-1
+      - control-plane-db-2
 
   # 1. CENTRAL IDENTITY BROKER: the single login point. It routes B2B email domains
   #    to the DC Keycloak that owns the user, and stores self-registered B2C users itself.
@@ -428,3 +552,14 @@ networks:
 
   cluster-net-2:
     driver: bridge
+
+  # Control plane database cluster: Patroni nodes, etcd and their load balancer.
+  control-plane-db-net:
+    driver: bridge
+
+volumes:
+  control-plane-db-1-data:
+  control-plane-db-2-data:
+  control-plane-etcd-1-data:
+  control-plane-etcd-2-data:
+  control-plane-etcd-3-data:

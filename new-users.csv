@@ -1,3 +1,3 @@
-username,email,groups
-jack,jack@dc2.test,service-a
-martin,martin@dc2.test,service-a;service-b
+realm-alias,username,email,groups
+dc-2,jack,jack@gmail.com,service-a
+dc-1,martin,martin@outlook.com,service-a;service-b

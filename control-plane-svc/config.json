@@ -1,13 +1,5 @@
 [
   {
-    "id": "central",
-    "name": "Central",
-    "baseURL": "http://auth.babylon.test",
-    "realm": "babylon",
-    "clientID": "control-plane",
-    "secretEnv": "CENTRAL_CONTROL_PLANE_KEYCLOAK_CLIENT_SECRET"
-  },
-  {
     "id": "dc-1",
     "name": "DC 1",
     "baseURL": "http://auth.dc-1.babylon.test",

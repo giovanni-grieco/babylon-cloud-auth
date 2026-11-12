@@ -69,8 +69,42 @@ func NewPostgresStore(host, user, password, dbname, port, sslmode, timezone stri
 		return nil, fmt.Errorf("Error while creating PostgresStore: %v", err)
 	}
 
-	db.AutoMigrate(&UserRealm{})
+	if err := migrate(db); err != nil {
+		return nil, fmt.Errorf("Error while migrating the schema: %v", err)
+	}
 	return &PostgresStore{db: db}, nil
+}
+
+// migrateLockKey is an arbitrary key for pg_advisory_lock, shared by every
+// control plane instance.
+const migrateLockKey = 7_420_531
+
+// migrate runs AutoMigrate under a Postgres advisory lock, so replicas
+// starting together don't race on CREATE TABLE / CREATE INDEX. The lock is
+// session-scoped, so lock, migration and unlock share one connection.
+func migrate(db *gorm.DB) error {
+	return db.Connection(func(conn *gorm.DB) error {
+		if err := conn.Exec("SELECT pg_advisory_lock(?)", migrateLockKey).Error; err != nil {
+			return err
+		}
+		defer conn.Exec("SELECT pg_advisory_unlock(?)", migrateLockKey)
+		return conn.AutoMigrate(&UserRealm{})
+	})
+}
+
+// Ping checks that the database answers and accepts writes. Behind the
+// Patroni load balancer a connection always lands on the primary, but right
+// after a failover an old connection may still point at a demoted node, which
+// is read-only: report that as unhealthy too.
+func (ps *PostgresStore) Ping(ctx context.Context) error {
+	var readOnly bool
+	if err := ps.db.WithContext(ctx).Raw("SELECT pg_is_in_recovery()").Scan(&readOnly).Error; err != nil {
+		return err
+	}
+	if readOnly {
+		return errors.New("connected to a read-only replica")
+	}
+	return nil
 }
 
 func NewPostgresStoreWithCfg(cfg PostgresStoreConfig) (*PostgresStore, error) {

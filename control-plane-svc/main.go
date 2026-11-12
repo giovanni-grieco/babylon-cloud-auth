@@ -136,12 +136,12 @@ func main() {
 
 	httpServer := &http.Server{
 		Addr:    webInboundPort.Address + ":" + strconv.Itoa(webInboundPort.Port),
-		Handler: webInboundPort.Routes(),
+		Handler: withHealthCheck(webInboundPort.Routes(), postgresStore.Ping),
 	}
 
 	restHttpServer := &http.Server{
 		Addr:    restInboundPort.Address + ":" + strconv.Itoa(restInboundPort.Port),
-		Handler: restInboundPort.Routes(),
+		Handler: withHealthCheck(restInboundPort.Routes(), postgresStore.Ping),
 	}
 
 	go func() {
@@ -174,4 +174,23 @@ func main() {
 	}
 
 	log.Println("Server exiting")
+}
+
+// withHealthCheck serves GET /healthz in front of next, for the load
+// balancer: 200 while the database answers and is writable, 503 otherwise.
+// It sits outside the port's own middleware, so it needs no auth.
+func withHealthCheck(next http.Handler, ping func(context.Context) error) http.Handler {
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, r *http.Request) {
+		ctx, cancel := context.WithTimeout(r.Context(), 2*time.Second)
+		defer cancel()
+		if err := ping(ctx); err != nil {
+			slog.WarnContext(ctx, "health check failed", "error", err)
+			http.Error(w, "database unavailable", http.StatusServiceUnavailable)
+			return
+		}
+		w.Write([]byte("ok\n"))
+	})
+	mux.Handle("/", next)
+	return mux
 }

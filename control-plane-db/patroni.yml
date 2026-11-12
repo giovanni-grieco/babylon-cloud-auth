@@ -1,0 +1,63 @@
+# Shared by every node. What differs per node (name, addresses) and the
+# passwords come from PATRONI_* environment variables set in compose.yml.
+scope: control-plane
+namespace: /babylon/
+
+restapi:
+  # HAProxy asks GET /primary and GET /replica here to find each node's role.
+  listen: 0.0.0.0:8008
+
+etcd3:
+  hosts:
+    - control-plane-etcd-1:2379
+    - control-plane-etcd-2:2379
+    - control-plane-etcd-3:2379
+
+bootstrap:
+  # Written to etcd once, when the cluster is first created. Change it later
+  # with `patronictl edit-config`, not here.
+  dcs:
+    ttl: 30
+    loop_wait: 10
+    retry_timeout: 10
+    # A replica further behind than this (bytes of WAL) is not promoted.
+    maximum_lag_on_failover: 1048576
+    # A commit returns only once the replica has it too, so a failover loses
+    # no username/email reservation. Not strict: if the replica is down the
+    # primary goes on alone (asynchronous) instead of refusing writes.
+    synchronous_mode: true
+    synchronous_mode_strict: false
+    postgresql:
+      use_pg_rewind: true
+      parameters:
+        wal_level: replica
+        hot_standby: "on"
+        wal_log_hints: "on"
+        max_wal_senders: 10
+        max_replication_slots: 10
+        timezone: Europe/Rome
+  initdb:
+    - encoding: UTF8
+    - data-checksums
+  # Creates the control plane's role and database, on the first primary only.
+  post_bootstrap: /usr/local/bin/post_bootstrap.sh
+
+postgresql:
+  listen: 0.0.0.0:5432
+  data_dir: /var/lib/postgresql/data/pgdata
+  bin_dir: /usr/lib/postgresql/17/bin
+  pgpass: /tmp/pgpass
+  # How a new replica clones the primary. Without checkpoint=fast,
+  # pg_basebackup waits for a spread checkpoint, which takes minutes.
+  basebackup:
+    - checkpoint: fast
+    - verbose
+  pg_hba:
+    - local all all trust
+    - host replication replicator all scram-sha-256
+    - host all all all scram-sha-256
+
+tags:
+  nofailover: false
+  noloadbalance: false
+  clonefrom: false
