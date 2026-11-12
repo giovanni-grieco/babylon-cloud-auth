@@ -1,0 +1,26 @@
+{{define "content"}}
+<h1>{{.Title}}</h1>
+
+<section class="card">
+  <p class="notice notice-{{.Kind}}" role="status">{{.Message}}</p>
+
+  {{with .User}}
+  <dl class="fields">
+    <dt>Username</dt><dd>{{.Username}}</dd>
+    <dt>Email</dt><dd>{{.Email}}</dd>
+    <dt>Realm</dt><dd><code>{{.Realm}}</code></dd>
+    <dt>State</dt><dd>{{template "state" .}}</dd>
+  </dl>
+  {{end}}
+
+  {{with .Password}}
+  <div class="secret">
+    <label for="temporary-password">Temporary password</label>
+    <input id="temporary-password" class="secret-value" value="{{.}}" readonly autocomplete="off" spellcheck="false">
+    <p class="help">Shown only on this page: the control plane does not store it. If it gets lost, reset it from the user's page.</p>
+  </div>
+  {{end}}
+
+  <div class="form-actions">{{template "controls" .Controls}}</div>
+</section>
+{{end}}

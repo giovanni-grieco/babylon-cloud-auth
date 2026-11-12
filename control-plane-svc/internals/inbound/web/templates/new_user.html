@@ -1,0 +1,31 @@
+{{define "content"}}
+<p class="breadcrumb"><a rel="collection" href="/users">Users</a> /</p>
+<h1>New user</h1>
+
+{{if .Realms}}
+<form class="card form" method="post" action="{{.Action}}">
+  {{with .Error}}<p class="notice notice-error" role="alert">{{.}}</p>{{end}}
+
+  <label for="username">Username</label>
+  <input id="username" name="username" value="{{.Username}}" required maxlength="100" autocomplete="off" autocapitalize="none" spellcheck="false">
+
+  <label for="email">Email</label>
+  <input id="email" name="email" type="email" value="{{.Email}}" required maxlength="100" autocomplete="off">
+
+  <label for="realm">Realm</label>
+  <select id="realm" name="realm" required>
+    <option value="" {{if not .Realm}}selected{{end}} disabled>Choose a realm</option>
+    {{range .Realms}}<option value="{{.}}" {{if eq . $.Realm}}selected{{end}}>{{.}}</option>{{end}}
+  </select>
+
+  <p class="help">Username and email must be unique across all realms. A random temporary password is generated and shown once; Keycloak asks the user to change it at the first login.</p>
+
+  <div class="form-actions">
+    <button class="button primary" type="submit">Create user</button>
+    <a class="button" rel="collection" href="/users">Cancel</a>
+  </div>
+</form>
+{{else}}
+<p class="notice notice-error">No realm is configured, so no user can be created.</p>
+{{end}}
+{{end}}

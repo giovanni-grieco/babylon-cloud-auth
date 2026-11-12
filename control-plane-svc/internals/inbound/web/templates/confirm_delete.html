@@ -1,0 +1,13 @@
+{{define "content"}}
+<p class="breadcrumb"><a rel="collection" href="/users">Users</a> / <a rel="item" href="{{.User.Href}}">{{.User.Username}}</a> /</p>
+<h1>Delete {{.User.Username}}?</h1>
+
+<form class="card form" method="post" action="{{.Action}}">
+  <p>This deletes <strong>{{.User.Username}}</strong> ({{.User.Email}}) from the <code>{{.User.Realm}}</code> Keycloak realm. The user can no longer log in, and the username and email become free for a new registration.</p>
+  <p class="help">This cannot be undone.</p>
+  <div class="form-actions">
+    <button class="button danger" type="submit">Delete user</button>
+    <a class="button" rel="item" href="{{.User.Href}}">Cancel</a>
+  </div>
+</form>
+{{end}}

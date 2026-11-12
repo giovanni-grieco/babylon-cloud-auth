@@ -1,0 +1,38 @@
+{{define "content"}}
+<div class="page-head">
+  <h1>Users</h1>
+  <div class="controls">{{template "controls" .Controls}}</div>
+</div>
+
+{{with .Notice}}<p class="notice notice-{{.Kind}}" role="status">{{.Text}}</p>{{end}}
+
+{{if .Users}}
+<div class="table-wrap">
+  <table>
+    <thead>
+      <tr><th>Username</th><th>Email</th><th>Realm</th><th>State</th><th><span class="sr-only">Actions</span></th></tr>
+    </thead>
+    <tbody>
+      {{range .Users}}
+      <tr>
+        <td><a rel="item" href="{{.Href}}">{{.Username}}</a></td>
+        <td>{{.Email}}</td>
+        <td><code>{{.Realm}}</code></td>
+        <td>{{template "state" .}}</td>
+        <td><div class="row-controls">{{template "controls" .Controls}}</div></td>
+      </tr>
+      {{end}}
+    </tbody>
+  </table>
+</div>
+{{else}}
+<p class="empty">No users yet. <a rel="create-form" href="/users/new">Create the first one</a>.</p>
+{{end}}
+
+{{if or .Prev .Next}}
+<nav class="pager" aria-label="Pages">
+  {{with .Prev}}<a class="button" rel="prev" href="{{.}}">← Previous</a>{{end}}
+  {{with .Next}}<a class="button" rel="next" href="{{.}}">Next →</a>{{end}}
+</nav>
+{{end}}
+{{end}}

@@ -1,0 +1,25 @@
+{{define "content"}}
+<p class="breadcrumb"><a rel="collection" href="/users">Users</a> /</p>
+<div class="page-head">
+  <h1>{{.User.Username}}</h1>
+  <div class="controls">{{template "controls" .User.Controls}}</div>
+</div>
+
+<section class="card">
+  <dl class="fields">
+    <dt>State</dt>
+    <dd>{{template "state" .User}}<p class="help">{{.User.StateHelp}}</p></dd>
+    <dt>Email</dt>
+    <dd>{{.User.Email}}</dd>
+    <dt>Realm</dt>
+    <dd><code>{{.User.Realm}}</code></dd>
+    <dt>Keycloak id</dt>
+    <dd>{{with .User.KeycloakID}}<code>{{.}}</code>{{else}}<span class="muted">not assigned yet</span>{{end}}</dd>
+    <dt>Control plane id</dt>
+    <dd><code>{{.User.ID}}</code></dd>
+  </dl>
+  {{if .User.InProgress}}
+  <p class="card-foot"><a class="button" rel="self" href="{{.User.Href}}">Refresh</a></p>
+  {{end}}
+</section>
+{{end}}

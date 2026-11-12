@@ -1,0 +1,200 @@
+/* Babylon Control Plane — operator console. Plain CSS, no build step. */
+
+:root {
+  color-scheme: light dark;
+  --bg: #f5f6f8;
+  --surface: #ffffff;
+  --text: #1b1f24;
+  --muted: #5d6570;
+  --border: #d9dde3;
+  --accent: #2d5bd7;
+  --accent-text: #ffffff;
+  --danger: #c4312b;
+  --danger-text: #ffffff;
+  --success-bg: #e7f5ec;
+  --success-fg: #1d6b3a;
+  --info-bg: #e8effc;
+  --info-fg: #24489e;
+  --error-bg: #fbeaea;
+  --error-fg: #9c2620;
+  --warn-bg: #fdf3e1;
+  --warn-fg: #8a5a06;
+  --neutral-bg: #eceef1;
+  --neutral-fg: #48505a;
+  --radius: 8px;
+  --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #121418;
+    --surface: #1b1e24;
+    --text: #e6e8eb;
+    --muted: #9aa2ad;
+    --border: #2e333b;
+    --accent: #6d8ff0;
+    --accent-text: #0e1320;
+    --danger: #ef6b64;
+    --danger-text: #1f0b0a;
+    --success-bg: #173322;
+    --success-fg: #8fd8a8;
+    --info-bg: #1a2744;
+    --info-fg: #a9c0f7;
+    --error-bg: #3a1a19;
+    --error-fg: #f4a8a3;
+    --warn-bg: #3a2c12;
+    --warn-fg: #f1c977;
+    --neutral-bg: #262a31;
+    --neutral-fg: #b7bec8;
+  }
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font: 15px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+
+a { color: var(--accent); }
+code { font-family: var(--mono); font-size: 0.9em; }
+h1 { font-size: 1.5rem; margin: 0 0 1rem; }
+
+.sr-only {
+  position: absolute; width: 1px; height: 1px; overflow: hidden;
+  clip: rect(0 0 0 0); white-space: nowrap;
+}
+
+/* ---- top bar ---- */
+.topbar {
+  display: flex; align-items: center; justify-content: space-between; gap: 1rem;
+  padding: 0.75rem 1.5rem;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+}
+.brand { font-weight: 700; color: var(--text); text-decoration: none; }
+.brand span { font-weight: 400; color: var(--muted); }
+.topbar nav { display: flex; gap: 1rem; }
+.topbar nav a { color: var(--muted); text-decoration: none; }
+.topbar nav a:hover { color: var(--text); }
+
+main { max-width: 1040px; margin: 0 auto; padding: 1.5rem 1.5rem 3rem; }
+
+.page-head {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 1rem; flex-wrap: wrap; margin-bottom: 1rem;
+}
+.page-head h1 { margin: 0; }
+.breadcrumb { margin: 0 0 0.25rem; color: var(--muted); font-size: 0.9rem; }
+
+/* ---- controls ---- */
+.controls, .row-controls, .form-actions { display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center; }
+.row-controls { justify-content: flex-end; }
+.form-actions { margin-top: 1.25rem; }
+form.inline { display: inline; margin: 0; }
+
+.button {
+  display: inline-block;
+  padding: 0.4rem 0.85rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit; font-size: 0.9rem;
+  text-decoration: none;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.button:hover { border-color: var(--muted); }
+.button:focus-visible, input:focus-visible, select:focus-visible {
+  outline: 2px solid var(--accent); outline-offset: 2px;
+}
+.button.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-text); }
+.button.danger { color: var(--danger); border-color: var(--danger); }
+.button.danger:hover, form .button.danger[type="submit"] { background: var(--danger); color: var(--danger-text); }
+
+/* ---- cards, tables ---- */
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1.25rem 1.5rem;
+}
+.card-foot { margin: 1rem 0 0; }
+
+.table-wrap {
+  overflow-x: auto;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+table { width: 100%; border-collapse: collapse; }
+th, td { padding: 0.6rem 0.9rem; text-align: left; border-bottom: 1px solid var(--border); vertical-align: middle; }
+th { font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); font-weight: 600; }
+tbody tr:last-child td { border-bottom: 0; }
+td a { font-weight: 600; text-decoration: none; }
+td a:hover { text-decoration: underline; }
+
+.empty { color: var(--muted); }
+.muted { color: var(--muted); }
+.pager { display: flex; gap: 0.5rem; justify-content: flex-end; margin-top: 1rem; }
+
+/* ---- state badges ---- */
+.state {
+  display: inline-block;
+  padding: 0.1rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.75rem; font-weight: 600; letter-spacing: 0.03em;
+  background: var(--neutral-bg); color: var(--neutral-fg);
+}
+.state-created { background: var(--success-bg); color: var(--success-fg); }
+.state-pending-creation, .state-pending-deletion { background: var(--warn-bg); color: var(--warn-fg); }
+.state-failed-creation, .state-failed-deletion { background: var(--error-bg); color: var(--error-fg); }
+
+/* ---- notices ---- */
+.notice { margin: 0 0 1rem; padding: 0.7rem 0.9rem; border-radius: var(--radius); }
+.notice-success { background: var(--success-bg); color: var(--success-fg); }
+.notice-info { background: var(--info-bg); color: var(--info-fg); }
+.notice-error { background: var(--error-bg); color: var(--error-fg); }
+
+/* ---- field lists ---- */
+.fields { display: grid; grid-template-columns: max-content 1fr; gap: 0.6rem 1.5rem; margin: 0; }
+.fields dt { color: var(--muted); }
+.fields dd { margin: 0; overflow-wrap: anywhere; }
+.help { margin: 0.35rem 0 0; color: var(--muted); font-size: 0.875rem; }
+
+/* ---- forms ---- */
+.form { max-width: 520px; }
+.form label, .secret label { display: block; font-weight: 600; margin: 1rem 0 0.35rem; }
+.form label:first-of-type { margin-top: 0; }
+input, select {
+  width: 100%;
+  padding: 0.5rem 0.65rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+}
+
+.secret { margin-top: 1.25rem; }
+.secret-value {
+  font-family: var(--mono);
+  font-size: 1.1rem;
+  letter-spacing: 0.05em;
+  background: var(--warn-bg);
+  color: var(--warn-fg);
+  border-color: transparent;
+}
+
+@media (max-width: 640px) {
+  .topbar { padding: 0.75rem 1rem; }
+  main { padding: 1rem 1rem 2rem; }
+  .fields { grid-template-columns: 1fr; gap: 0.15rem; }
+  .fields dd { margin-bottom: 0.6rem; }
+  /* Phones: hide email and the row actions; the user's page offers the same actions. */
+  th:nth-child(2), td:nth-child(2),
+  th:nth-child(5), td:nth-child(5) { display: none; }
+}

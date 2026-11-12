@@ -114,6 +114,7 @@ func main() {
 
 	reconciliationService := service.NewReconciliationService(
 		time.Second*10,
+		time.Minute, // a PENDING_* row this old belongs to an interrupted request
 		postgresStore,
 		keycloakClients,
 	)

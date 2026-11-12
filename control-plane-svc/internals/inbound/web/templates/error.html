@@ -1,0 +1,7 @@
+{{define "content"}}
+<h1>{{.Title}}</h1>
+<section class="card">
+  <p class="notice notice-error" role="alert">{{.Message}}</p>
+  <div class="form-actions">{{template "controls" .Controls}}</div>
+</section>
+{{end}}
