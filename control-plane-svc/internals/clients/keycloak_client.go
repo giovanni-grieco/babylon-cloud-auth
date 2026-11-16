@@ -360,6 +360,21 @@ func (kc *KeycloakClient) ResetTemporaryPassword(ctx context.Context, keycloakID
 	return nil
 }
 
+func (kc *KeycloakClient) LogoutUser(ctx context.Context, keycloakID string) error {
+	response, err := kc.do(ctx, http.MethodPost, usersPath+"/"+url.PathEscape(keycloakID)+"/logout", nil)
+	if err != nil {
+		return err
+	}
+	defer response.Body.Close()
+
+	switch response.StatusCode {
+	case http.StatusNoContent, http.StatusNotFound:
+		return nil
+	default:
+		return unexpectedStatus("logout user", response)
+	}
+}
+
 // DeleteUser deletes the user. A user that does not exist (404) counts as
 // deleted, so the call is safe to repeat.
 func (kc *KeycloakClient) DeleteUser(ctx context.Context, keycloakID string) error {

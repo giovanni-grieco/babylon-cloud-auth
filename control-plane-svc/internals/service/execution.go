@@ -79,5 +79,10 @@ func removeKeycloakUser(ctx context.Context, kc *clients.KeycloakClient, user *d
 		}
 		keycloakID = existing.RealmID
 	}
+
+	if err := kc.LogoutUser(ctx, keycloakID); err != nil {
+		return err
+	}
+
 	return kc.DeleteUser(ctx, keycloakID)
 }

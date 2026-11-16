@@ -2,9 +2,9 @@
 
 - Implementare il check di concorrenza tramite transazioni (FATTO?)
 
-- Keycloak client | implementare registrazione utente e cancellazione utente
+- Keycloak client | implementare registrazione utente e cancellazione utente (FATTO)
 
-- Implementare il control plane per l'amministratore (pagine web etc)
+- Implementare il control plane per l'amministratore (pagine web etc) (FATTO)
 
 - Implementare strato di sicurezza per control plane: control-plane-keycloak, oauth-proxy, traefik gateway che mette in sicurezza le rotte per il control plane. Rendere gli altri keycloak, clients del control plane keycloak per ottenere i token di accesso da presentare a traefik.
 
