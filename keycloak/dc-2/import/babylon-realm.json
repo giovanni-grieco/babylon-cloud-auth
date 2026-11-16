@@ -41,7 +41,7 @@
       "frontchannelLogout": false,
       "attributes": {
         "pkce.code.challenge.method": "S256",
-        "post.logout.redirect.uris": "http://auth.babylon.test/realms/babylon/broker/dc-1/endpoint/logout_response",
+        "post.logout.redirect.uris": "http://auth.babylon.test/realms/babylon/broker/dc-2/endpoint/logout_response",
         "backchannel.logout.url": "http://auth.babylon.test/realms/babylon/protocol/openid-connect/logout/backchannel-logout",
         "backchannel.logout.session.required": "true",
         "backchannel.logout.revoke.offline.tokens": "true"
