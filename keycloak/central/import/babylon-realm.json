@@ -141,7 +141,7 @@
         "loginHint": "true",
         "disableUserInfo": "true",
         "sendIdTokenOnLogout": "true",
-        "backchannelSupported": "false",
+        "backchannelSupported": "true",
         "syncMode": "FORCE",
         "home.idp.discovery.domains": "dc1.test"
       }
@@ -173,7 +173,7 @@
         "loginHint": "true",
         "disableUserInfo": "true",
         "sendIdTokenOnLogout": "true",
-        "backchannelSupported": "false",
+        "backchannelSupported": "true",
         "syncMode": "FORCE",
         "home.idp.discovery.domains": "dc2.test"
       }
