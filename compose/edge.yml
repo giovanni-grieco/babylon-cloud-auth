@@ -1,0 +1,100 @@
+x-keycloak-env: &keycloak-env
+  KC_DB: postgres
+  KC_DB_USERNAME: keycloak
+  KC_PROXY_HEADERS: xforwarded
+  KC_HEALTH_ENABLED: "true"
+
+x-keycloak-base: &keycloak-base
+  command: start-dev --import-realm # lab only; use `start` with HTTPS in production
+  healthcheck:
+    # The image has no curl, so talk to the management port through bash.
+    test:
+      - CMD-SHELL
+      - >-
+        exec 3<>/dev/tcp/127.0.0.1/9000 &&
+        printf 'GET /health/ready HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n' >&3 &&
+        grep -q '"UP"' <&3
+    interval: 7s
+    timeout: 10s
+    retries: 30
+    start_period: 30s
+
+x-keycloak-db-env: &keycloak-db-env
+  POSTGRES_USER: keycloak
+  POSTGRES_DB: keycloak
+  TZ: Europe/Rome
+
+x-keycloak-db-base: &keycloak-db-base
+  image: postgres:17
+  healthcheck:
+    test: ["CMD-SHELL", "pg_isready -U keycloak -d keycloak"]
+    interval: 7s
+    timeout: 10s
+    retries: 5
+
+services:
+  load-balancer:
+    image: nginx:alpine
+    container_name: load-balancer
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+    networks:
+      edge-net:
+        aliases:
+          # Containers resolve the issuer to nginx, exactly like the browser does,
+          # so the token issuer URL is the same on both sides.
+          - auth.babylon.test
+          - auth.dc-1.babylon.test
+          - auth.dc-2.babylon.test
+  
+  keycloak:
+    <<: *keycloak-base
+    build: ./keycloak/central
+    container_name: keycloak
+    environment:
+      <<: *keycloak-env
+      KC_DB_URL: jdbc:postgresql://keycloak-db:5432/keycloak
+      KC_DB_PASSWORD: ${KC_DB_PASSWORD:?run start.sh or copy .env.example to .env}
+      KC_HOSTNAME: http://auth.babylon.test
+      KC_BOOTSTRAP_ADMIN_USERNAME: ${KC_ADMIN_USERNAME:?run start.sh or copy .env.example to .env}
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KC_ADMIN_PASSWORD:?run start.sh or copy .env.example to .env}
+      # Read by the realm import
+      OIDC_CLIENT_SECRET: ${OIDC_CLIENT_SECRET:?run start.sh or copy .env.example to .env}
+      DC1_BROKER_SECRET: ${DC1_BROKER_SECRET:?run start.sh or copy .env.example to .env}
+      DC2_BROKER_SECRET: ${DC2_BROKER_SECRET:?run start.sh or copy .env.example to .env}
+      # Home realm discovery oracle (babylon-hrd authenticator). Unset or unreachable:
+      # every user falls back to the central (B2C) login.
+      CENTRAL_CONTROL_PLANE_KEYCLOAK_CLIENT_SECRET: ${CENTRAL_CONTROL_PLANE_KEYCLOAK_CLIENT_SECRET}
+      HRD_ORACLE_URL: http://control-plane:8081/api/v1/discover
+      HRD_ORACLE_SECRET: ${CONTROL_PLANE_SECRET:?run start.sh or copy .env.example to .env}
+    volumes:
+      - ./keycloak/central/import:/opt/keycloak/data/import:ro
+    networks:
+      - edge-net
+      - keycloak-net
+    depends_on:
+      keycloak-db:
+        condition: service_healthy
+
+  keycloak-db:
+    <<: *keycloak-db-base
+    container_name: keycloak-db
+    environment:
+      <<: *keycloak-db-env
+      POSTGRES_PASSWORD: ${KC_DB_PASSWORD:?run start.sh or copy .env.example to .env}
+    ports:
+      - "5430:5432" # lab only; remove with HTTPS
+    volumes:
+      - ./keycloak-db-data:/var/lib/postgresql/data
+    networks:
+      - keycloak-net
+
+
+networks:
+  edge-net:
+    driver: bridge
+
+  keycloak-net:
+    driver: bridge

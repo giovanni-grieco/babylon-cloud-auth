@@ -1,0 +1,171 @@
+x-keycloak-env: &keycloak-env
+  KC_DB: postgres
+  KC_DB_USERNAME: keycloak
+  KC_PROXY_HEADERS: xforwarded
+  KC_HEALTH_ENABLED: "true"
+
+x-keycloak-base: &keycloak-base
+  command: start-dev --import-realm # lab only; use `start` with HTTPS in production
+  healthcheck:
+    # The image has no curl, so talk to the management port through bash.
+    test:
+      - CMD-SHELL
+      - >-
+        exec 3<>/dev/tcp/127.0.0.1/9000 &&
+        printf 'GET /health/ready HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n' >&3 &&
+        grep -q '"UP"' <&3
+    interval: 7s
+    timeout: 10s
+    retries: 30
+    start_period: 30s
+
+x-keycloak-db-env: &keycloak-db-env
+  POSTGRES_USER: keycloak
+  POSTGRES_DB: keycloak
+  TZ: Europe/Rome
+
+x-keycloak-db-base: &keycloak-db-base
+  image: postgres:17
+  healthcheck:
+    test: ["CMD-SHELL", "pg_isready -U keycloak -d keycloak"]
+    interval: 7s
+    timeout: 10s
+    retries: 5
+
+x-oauth2-proxy-base: &oauth2-proxy-base
+  image: quay.io/oauth2-proxy/oauth2-proxy:v7.12.0
+  restart: unless-stopped # retries OIDC discovery if the issuer isn't reachable yet
+  command:
+    - --http-address=0.0.0.0:4180
+    - --provider=keycloak-oidc
+    - --client-id=gateway
+    - --oidc-issuer-url=http://auth.babylon.test/realms/babylon
+    - --redirect-url=http://babylon.test/oauth2/callback
+    - --code-challenge-method=S256
+    - --email-domain=*
+    - --oidc-email-claim=sub # central tokens carry no email, by design
+    - --insecure-oidc-allow-unverified-email=true # there's no email_verified claim either
+    - --skip-provider-button=true
+    - --reverse-proxy=true
+    - --upstream=static://202 # authenticated: answer forwardAuth without proxying anywhere
+    - --set-xauthrequest=true
+    - --cookie-domain=.babylon.test
+    - --whitelist-domain=.babylon.test
+    - --cookie-secure=false # lab only; remove with HTTPS
+    - --cookie-refresh=4m # shorter than the 5 minute access token
+    - --cookie-expire=10h # matches Keycloak's SSO session max
+    #- --session-store-type=redis
+    #- --redis-connection-url=redis://state-kv:6379
+  environment:
+    OAUTH2_PROXY_CLIENT_SECRET: ${OIDC_CLIENT_SECRET:?run start.sh or copy .env.example to .env}
+    OAUTH2_PROXY_COOKIE_SECRET: ${OAUTH2_PROXY_COOKIE_SECRET:?run start.sh or copy .env.example to .env}
+  depends_on:
+    keycloak:
+      condition: service_healthy
+
+services:
+  keycloak-dc-1:
+    <<: *keycloak-base
+    image: quay.io/keycloak/keycloak:26.7.0
+    container_name: keycloak-dc-1
+    environment:
+      <<: *keycloak-env
+      KC_DB_URL: jdbc:postgresql://keycloak-dc-1-db:5432/keycloak
+      KC_DB_PASSWORD: ${DC1_DB_PASSWORD:?run start.sh or copy .env.example to .env}
+      KC_HOSTNAME: http://auth.dc-1.babylon.test
+      KC_BOOTSTRAP_ADMIN_USERNAME: ${DC1_ADMIN_USERNAME:?run start.sh or copy .env.example to .env}
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${DC1_ADMIN_PASSWORD:?run start.sh or copy .env.example to .env}
+      # Read by the realm import
+      DC1_BROKER_SECRET: ${DC1_BROKER_SECRET:?run start.sh or copy .env.example to .env}
+      DC1_CONTROL_PLANE_KEYCLOAK_CLIENT_SECRET: ${DC1_CONTROL_PLANE_KEYCLOAK_CLIENT_SECRET:?run start.sh or copy .env.example to .env}
+    volumes:
+      - ./keycloak/dc-1/import:/opt/keycloak/data/import:ro
+    networks:
+      - edge-net
+      - keycloak-dc-1-net
+    depends_on:
+      keycloak-dc-1-db:
+        condition: service_healthy
+  
+  keycloak-dc-1-db:
+    <<: *keycloak-db-base
+    container_name: keycloak-dc-1-db
+    environment:
+      <<: *keycloak-db-env
+      POSTGRES_PASSWORD: ${DC1_DB_PASSWORD:?run start.sh or copy .env.example to .env}
+    ports:
+      - "5431:5432" # lab only; remove with HTTPS
+    volumes:
+      - ./keycloak-dc-1-db-data:/var/lib/postgresql/data
+    networks:
+      - keycloak-dc-1-net
+
+  oauth2-proxy-1:
+    <<: *oauth2-proxy-base
+    container_name: oauth2-proxy-1
+    networks:
+      edge-net: # reaches Keycloak and Redis
+      cluster-net-1:
+        aliases:
+          - oauth2-proxy
+  
+  api-gateway-1:
+    image: traefik:latest
+    container_name: api-gateway-1
+    command:
+      - --api.insecure=true                     # dashboard + API on :8080 (lab only)
+      - --providers.consulcatalog.endpoint.address=consul:8500
+      - --providers.consulcatalog.endpoint.scheme=http
+      - --providers.consulcatalog.exposedByDefault=false
+      - --providers.file.directory=/etc/traefik/dynamic
+      - --entrypoints.web.address=:80
+    volumes:
+      - ./traefik:/etc/traefik/dynamic:ro
+    ports:
+      - "127.0.0.1:8081:8080"                             # Traefik dashboard
+    networks:
+      - edge-net
+      - cluster-net-1
+    depends_on:
+      - consul-1
+
+  consul-1:
+    image: hashicorp/consul:latest
+    container_name: consul-1
+    command: agent -server -bootstrap-expect=1 -client=0.0.0.0 -ui -data-dir=/consul/data
+    ports:
+      - "127.0.0.1:8501:8500"                             # HTTP API + UI
+    networks:
+      cluster-net-1:
+        aliases:
+          - consul
+
+  mock-svc-1-1:
+    build: ./mock-svc
+    container_name: mock-svc-1-1
+    volumes:
+      - ./mock-svc/templates:/app/templates:ro
+    environment:
+      - CONSUL_ADDR=consul
+    networks:
+      - cluster-net-1
+    depends_on:
+      - consul-1
+
+  mock-svc-1-2:
+    build: ./mock-svc
+    container_name: mock-svc-1-2
+    volumes:
+      - ./mock-svc/templates:/app/templates:ro
+    environment:
+      - CONSUL_ADDR=consul
+    networks:
+      - cluster-net-1
+    depends_on:
+      - consul-1
+
+networks:
+  cluster-net-1:
+    driver: bridge
+  keycloak-dc-1-net:
+    driver: bridge
