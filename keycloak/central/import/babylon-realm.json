@@ -108,7 +108,7 @@
       "alias": "babylon-hrd-config",
       "config": {
         "oracle.url": "${HRD_ORACLE_URL}",
-        "oracle.secret": "${HRD_ORACLE_SECRET}",
+        "oracle.secret": "${vault.oracle-secret}",
         "oracle.timeoutMs": "2000"
       }
     }

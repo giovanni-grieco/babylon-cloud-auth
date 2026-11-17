@@ -19,6 +19,7 @@ import org.jboss.logging.Logger;
 import org.keycloak.services.Urls;
 import org.keycloak.services.managers.ClientSessionCode;
 import org.keycloak.sessions.AuthenticationSessionModel;
+import org.keycloak.vault.VaultStringSecret;
 
 import java.net.URI;
 import java.util.Map;
@@ -118,6 +119,7 @@ public class HomeRealmDiscoverer implements Authenticator{
         }
         int timeout = Integer.parseInt(cfg.getConfig().getOrDefault(CFG_TIMEOUT_MS, "2000"));
 
+        
         // Uses Keycloak's shared, pooled HTTP client (truststore/proxy settings apply)
         RequestConfig rc = RequestConfig.custom()
                 .setConnectTimeout(timeout)
@@ -125,9 +127,17 @@ public class HomeRealmDiscoverer implements Authenticator{
                 .setSocketTimeout(timeout)
                 .build();
 
-        try (SimpleHttpResponse resp = SimpleHttp.create(context.getSession())
+        String secretRef = cfg.getConfig().get(CFG_ORACLE_SECRET);
+        if (secretRef == null || secretRef.isBlank()) {
+            throw new IllegalStateException("HRD authenticator not configured: missing " + CFG_ORACLE_SECRET);
+        }
+
+        try (
+            VaultStringSecret secret = context.getSession().vault().getStringSecret(secretRef);
+            SimpleHttpResponse resp = SimpleHttp.create(context.getSession())
                 .withRequestConfig(rc)
                 .doPost(url)
+                .auth(secret.get().orElseThrow(() -> new IllegalStateException("Oracle secret not found in vault: " + secretRef)))
                 .acceptJson()
                 .json(Map.of("login_hint", username))
                 .asResponse()) {

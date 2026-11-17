@@ -68,7 +68,10 @@ services:
       # every user falls back to the central (B2C) login.
       CENTRAL_CONTROL_PLANE_KEYCLOAK_CLIENT_SECRET: ${CENTRAL_CONTROL_PLANE_KEYCLOAK_CLIENT_SECRET}
       HRD_ORACLE_URL: http://control-plane:8081/api/v1/discover
-      HRD_ORACLE_SECRET: ${CONTROL_PLANE_SECRET:?run start.sh or copy .env.example to .env}
+      KC_VAULT: file
+      KC_VAULT_DIR: /run/secrets
+    secrets:
+      - babylon_oracle-secret
     volumes:
       - ./keycloak/central/import:/opt/keycloak/data/import:ro
     networks:
@@ -98,3 +101,7 @@ networks:
 
   keycloak-net:
     driver: bridge
+
+secrets:
+  babylon_oracle-secret:
+    environment: CONTROL_PLANE_SECRET

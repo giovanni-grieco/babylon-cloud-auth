@@ -132,7 +132,7 @@ func main() {
 	controlPlaneService := service.NewControlPlanceService(postgresStore, realm2KeycloakClients)
 
 	webInboundPort := web.NewWebInboundPort(cfg.Address, cfg.WebPort, controlPlaneService)
-	restInboundPort := rest.NewRestInboundPort(cfg.Address, cfg.RestPort, controlPlaneService)
+	restInboundPort := rest.NewRestInboundPort(cfg.Address, cfg.RestPort, cfg.ControlPlaneSecret, controlPlaneService)
 
 	httpServer := &http.Server{
 		Addr:    webInboundPort.Address + ":" + strconv.Itoa(webInboundPort.Port),

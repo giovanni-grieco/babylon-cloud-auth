@@ -2,6 +2,7 @@ package rest
 
 import (
 	"control-plane-svc/internals/service"
+	"crypto/subtle"
 	"encoding/json"
 	"log/slog"
 	"net/http"
@@ -10,13 +11,15 @@ import (
 type RestInboundPort struct {
 	Address             string
 	Port                int
+	secret              string
 	ControlPlaneService *service.ControlPlaneService
 }
 
-func NewRestInboundPort(address string, port int, controlPlaneService *service.ControlPlaneService) *RestInboundPort {
+func NewRestInboundPort(address string, port int, secret string, controlPlaneService *service.ControlPlaneService) *RestInboundPort {
 	return &RestInboundPort{
 		Address:             address,
 		Port:                port,
+		secret:              secret,
 		ControlPlaneService: controlPlaneService,
 	}
 }
@@ -26,7 +29,20 @@ func (rip *RestInboundPort) Routes() http.Handler {
 
 	mux.HandleFunc("POST /api/v1/discover", rip.DiscoverPostHandler)
 
-	return http.NewCrossOriginProtection().Handler(mux)
+	return securityHandler(rip.secret, http.NewCrossOriginProtection().Handler(mux))
+}
+
+func securityHandler(secret string, next http.Handler) http.Handler {
+	want := []byte("Bearer " + secret)
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		got := []byte(r.Header.Get("Authorization"))
+		if subtle.ConstantTimeCompare(want, got) != 1 {
+			w.Header().Set("WWW-Authenticate", `Bearer realm="control-plane"`)
+			http.Error(w, "Unauthorized", http.StatusUnauthorized)
+			return // next is never called
+		}
+		next.ServeHTTP(w, r)
+	})
 }
 
 type DiscoveryDto struct {
