@@ -7,9 +7,17 @@ x-keycloak-env: &keycloak-env
   KC_PROXY_HEADERS: "xforwarded"
   KC_HTTP_ENABLED: "true"
   KC_HOSTNAME: "http://auth.babylon.test"
+  # Per node. The sum over all nodes must stay below Postgres max_connections
+  # (100) and HAProxy's maxconn (100 per server).
+  KC_DB_POOL_INITIAL_SIZE: "5"
+  KC_DB_POOL_MIN_SIZE: "5"
+  KC_DB_POOL_MAX_SIZE: "30"
 
 x-keycloak-base: &keycloak-base
-  command: start --import-realm # lab only; use `start` with HTTPS in production
+  command: start --import-realm # plain HTTP behind nginx (KC_HTTP_ENABLED): lab only
+  # Exits when the database isn't reachable yet (Patroni is still electing a
+  # primary) and comes back once it is.
+  restart: unless-stopped
   healthcheck:
     # The image has no curl, so talk to the management port through bash.
     test:
@@ -23,20 +31,44 @@ x-keycloak-base: &keycloak-base
     retries: 30
     start_period: 30s
 
+# Central Keycloak database: two Postgres nodes run by Patroni (shared image in
+# patroni-db/), one primary and one hot standby in synchronous replication.
+# The leader lock lives in the shared etcd (compose/etcd.yml) under the
+# "keycloak" scope. Keycloak reaches the primary through keycloak-db-lb.
 x-keycloak-db-env: &keycloak-db-env
-  POSTGRES_USER: keycloak
-  POSTGRES_DB: keycloak
+  PATRONI_SCOPE: keycloak
+  PATRONI_SUPERUSER_USERNAME: postgres
+  PATRONI_SUPERUSER_PASSWORD: ${KC_DB_SUPERUSER_PASSWORD:?run start.sh or copy .env.example to .env}
+  PATRONI_REPLICATION_USERNAME: replicator
+  PATRONI_REPLICATION_PASSWORD: ${KC_DB_REPLICATION_PASSWORD:?run start.sh or copy .env.example to .env}
+  # Read by post_bootstrap.sh when the cluster is first created
+  APP_DB_USER: keycloak
+  APP_DB_NAME: keycloak
+  APP_DB_PASSWORD: ${KC_DB_PASSWORD:?run start.sh or copy .env.example to .env}
   TZ: Europe/Rome
 
 x-keycloak-db-base: &keycloak-db-base
-  image: postgres:17
+  build: ./patroni-db
+  image: babylon/patroni-db:local  # same image as the control plane database
+  restart: unless-stopped
   healthcheck:
-    test: ["CMD-SHELL", "pg_isready -U keycloak -d keycloak"]
+    # Patroni's /health is 200 while Postgres runs, as primary or replica.
+    test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8008/health', timeout=3)"]
     interval: 7s
-    timeout: 10s
-    retries: 5
+    timeout: 5s
+    retries: 10
+    start_period: 30s
+  networks:
+    - keycloak-db-net   # reached only through keycloak-db-lb
+    - central-etcd-net  # leader lock
+  depends_on:
+    - control-plane-etcd-1
+    - control-plane-etcd-2
+    - control-plane-etcd-3
 
 services:
+
+
   load-balancer:
     image: nginx:alpine
     container_name: load-balancer
@@ -53,6 +85,16 @@ services:
           - auth.dc-1.babylon.test
           - auth.dc-2.babylon.test
   
+  # Catches the central realm's verification and password-reset emails (lab only).
+  # Inbox: http://localhost:8025
+  mailpit:
+    image: axllent/mailpit:v1.31.6
+    container_name: mailpit
+    ports:
+      - "127.0.0.1:8025:8025"
+    networks:
+      - edge-net
+
   keycloak-central-1:
     <<: *keycloak-base
     build: ./keycloak/central
@@ -81,9 +123,9 @@ services:
     networks:
       - edge-net
     depends_on:
-      keycloak-db:
-        condition: service_healthy
-  
+      keycloak-db-lb:
+        condition: service_started
+
   keycloak-central-2:
     <<: *keycloak-base
     build: ./keycloak/central
@@ -114,26 +156,64 @@ services:
     depends_on:
       keycloak-central-1:
         condition: service_healthy
-      keycloak-db:
-        condition: service_healthy
+      keycloak-db-lb:
+        condition: service_started
 
-  keycloak-db:
+  # Always forwards :5432 to whichever node Patroni says is the primary. The
+  # only database container on edge-net: it owns the "keycloak-db" name, so
+  # KC_DB_URL doesn't know how many nodes there are.
+  keycloak-db-lb:
+    image: haproxy:3.2-alpine
+    container_name: keycloak-db-lb
+    volumes:
+      - ./keycloak-db-lb/haproxy.cfg:/usr/local/etc/haproxy/haproxy.cfg:ro
+    ports:
+      - "5430:5432"            # primary, read-write (lab only; remove with HTTPS)
+      - "127.0.0.1:5435:5433"  # replicas, read-only
+      - "127.0.0.1:8406:8404"  # HAProxy stats
+    networks:
+      edge-net:
+        aliases:
+          - keycloak-db  # KC_DB_URL of the central Keycloak nodes
+      keycloak-db-net:
+    depends_on:
+      - keycloak-db-1
+      - keycloak-db-2
+
+  keycloak-db-1:
     <<: *keycloak-db-base
-    container_name: keycloak-db
+    container_name: keycloak-db-1
     environment:
       <<: *keycloak-db-env
-      POSTGRES_PASSWORD: ${KC_DB_PASSWORD:?run start.sh or copy .env.example to .env}
-    ports:
-      - "5430:5432" # lab only; remove with HTTPS
+      PATRONI_NAME: keycloak-db-1
+      PATRONI_RESTAPI_CONNECT_ADDRESS: keycloak-db-1:8008
+      PATRONI_POSTGRESQL_CONNECT_ADDRESS: keycloak-db-1:5432
     volumes:
-      - ./keycloak-db-data:/var/lib/postgresql/data
-    networks:
-      - edge-net
+      - keycloak-db-1-data:/var/lib/postgresql/data
+
+  keycloak-db-2:
+    <<: *keycloak-db-base
+    container_name: keycloak-db-2
+    environment:
+      <<: *keycloak-db-env
+      PATRONI_NAME: keycloak-db-2
+      PATRONI_RESTAPI_CONNECT_ADDRESS: keycloak-db-2:8008
+      PATRONI_POSTGRESQL_CONNECT_ADDRESS: keycloak-db-2:5432
+    volumes:
+      - keycloak-db-2-data:/var/lib/postgresql/data
 
 
 networks:
   edge-net:
     driver: bridge
+
+  # Central Keycloak database cluster: Patroni nodes and their load balancer.
+  keycloak-db-net:
+    driver: bridge
+
+volumes:
+  keycloak-db-1-data:
+  keycloak-db-2-data:
 
 secrets:
   babylon_oracle-secret:

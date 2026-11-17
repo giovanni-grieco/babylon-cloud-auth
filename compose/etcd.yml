@@ -14,10 +14,10 @@ x-control-plane-etcd-base: &control-plane-etcd-base
     - central-etcd-net
 
 services:
-    # Control plane database: two Postgres nodes run by Patroni, one primary and
-  # one hot standby in synchronous replication. etcd (three members, so a
-  # majority survives one loss) holds the leader lock that decides which node
-  # is the primary; with only two voters a network split could elect two.
+  # Shared by every Patroni cluster (control plane database, central Keycloak
+  # database): each cluster keeps its leader lock under its own scope,
+  # /babylon/<scope>/. Three members, so a majority survives one loss; with
+  # only two voters a network split could elect two primaries.
   control-plane-etcd-1:
     <<: *control-plane-etcd-base
     container_name: control-plane-etcd-1

@@ -1,6 +1,8 @@
-# Shared by every node. What differs per node (name, addresses) and the
-# passwords come from PATRONI_* environment variables set in compose.yml.
-scope: control-plane
+# Default configuration of the shared Patroni image, used by every node of
+# every cluster. What differs per cluster (PATRONI_SCOPE) and per node (name,
+# addresses), and the passwords, come from PATRONI_* environment variables set
+# in the compose files. Every cluster shares the same etcd and namespace; the
+# scope keeps their leader keys apart (/babylon/<scope>/...).
 namespace: /babylon/
 
 restapi:
@@ -23,8 +25,9 @@ bootstrap:
     # A replica further behind than this (bytes of WAL) is not promoted.
     maximum_lag_on_failover: 1048576
     # A commit returns only once the replica has it too, so a failover loses
-    # no username/email reservation. Not strict: if the replica is down the
-    # primary goes on alone (asynchronous) instead of refusing writes.
+    # no committed write (a control plane reservation, a Keycloak user or
+    # session). Not strict: if the replica is down the primary goes on alone
+    # (asynchronous) instead of refusing writes.
     synchronous_mode: true
     synchronous_mode_strict: false
     postgresql:

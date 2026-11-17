@@ -10,6 +10,8 @@ add_secret() {
 touch .env
 
 add_secret KC_DB_PASSWORD 24
+add_secret KC_DB_SUPERUSER_PASSWORD 32
+add_secret KC_DB_REPLICATION_PASSWORD 32
 add_secret KC_ADMIN_USERNAME 10
 add_secret KC_ADMIN_PASSWORD 12
 add_secret OIDC_CLIENT_SECRET 32
