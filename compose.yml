@@ -1,4 +1,6 @@
 include:
+  - path: compose/etcd.yml
+    project_directory: .
   - path: compose/edge.yml
     project_directory: .
   - path: compose/dc-1.yml

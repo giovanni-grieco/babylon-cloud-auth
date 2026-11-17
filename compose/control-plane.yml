@@ -30,27 +30,15 @@ x-control-plane-svc-base: &control-plane-svc-base
   depends_on:
     control-plane-db-lb:
       condition: service_started
-    keycloak:
+    keycloak-central-1:
+      condition: service_healthy
+    keycloak-central-2:
       condition: service_healthy
     keycloak-dc-1:
       condition: service_healthy
     keycloak-dc-2:
       condition: service_healthy
 
-x-control-plane-etcd-env: &control-plane-etcd-env
-  ETCD_DATA_DIR: /etcd-data
-  ETCD_LISTEN_CLIENT_URLS: http://0.0.0.0:2379
-  ETCD_LISTEN_PEER_URLS: http://0.0.0.0:2380
-  ETCD_INITIAL_CLUSTER: control-plane-etcd-1=http://control-plane-etcd-1:2380,control-plane-etcd-2=http://control-plane-etcd-2:2380,control-plane-etcd-3=http://control-plane-etcd-3:2380
-  ETCD_INITIAL_CLUSTER_STATE: new
-  ETCD_INITIAL_CLUSTER_TOKEN: control-plane-etcd
-
-x-control-plane-etcd-base: &control-plane-etcd-base
-  image: quay.io/coreos/etcd:v3.5.21
-  command: ["etcd"]
-  restart: unless-stopped
-  networks:
-    - control-plane-db-net
 
 x-control-plane-db-env: &control-plane-db-env
   PATRONI_SUPERUSER_USERNAME: postgres
@@ -75,6 +63,7 @@ x-control-plane-db-base: &control-plane-db-base
     start_period: 30s
   networks:
     - control-plane-db-net
+    - central-etcd-net
   depends_on:
     - control-plane-etcd-1
     - control-plane-etcd-2
@@ -125,43 +114,6 @@ services:
       - control-plane-db-1
       - control-plane-db-2
 
-  # Control plane database: two Postgres nodes run by Patroni, one primary and
-  # one hot standby in synchronous replication. etcd (three members, so a
-  # majority survives one loss) holds the leader lock that decides which node
-  # is the primary; with only two voters a network split could elect two.
-  control-plane-etcd-1:
-    <<: *control-plane-etcd-base
-    container_name: control-plane-etcd-1
-    environment:
-      <<: *control-plane-etcd-env
-      ETCD_NAME: control-plane-etcd-1
-      ETCD_ADVERTISE_CLIENT_URLS: http://control-plane-etcd-1:2379
-      ETCD_INITIAL_ADVERTISE_PEER_URLS: http://control-plane-etcd-1:2380
-    volumes:
-      - control-plane-etcd-1-data:/etcd-data
-
-  control-plane-etcd-2:
-    <<: *control-plane-etcd-base
-    container_name: control-plane-etcd-2
-    environment:
-      <<: *control-plane-etcd-env
-      ETCD_NAME: control-plane-etcd-2
-      ETCD_ADVERTISE_CLIENT_URLS: http://control-plane-etcd-2:2379
-      ETCD_INITIAL_ADVERTISE_PEER_URLS: http://control-plane-etcd-2:2380
-    volumes:
-      - control-plane-etcd-2-data:/etcd-data
-
-  control-plane-etcd-3:
-    <<: *control-plane-etcd-base
-    container_name: control-plane-etcd-3
-    environment:
-      <<: *control-plane-etcd-env
-      ETCD_NAME: control-plane-etcd-3
-      ETCD_ADVERTISE_CLIENT_URLS: http://control-plane-etcd-3:2379
-      ETCD_INITIAL_ADVERTISE_PEER_URLS: http://control-plane-etcd-3:2380
-    volumes:
-      - control-plane-etcd-3-data:/etcd-data
-
   control-plane-db-1:
     <<: *control-plane-db-base
     container_name: control-plane-db-1
@@ -187,13 +139,10 @@ services:
 
 
 networks:
-  # Control plane database cluster: Patroni nodes, etcd and their load balancer.
+  # Control plane database cluster: Patroni nodes load balancer.
   control-plane-db-net:
     driver: bridge
 
 volumes:
   control-plane-db-1-data:
   control-plane-db-2-data:
-  control-plane-etcd-1-data:
-  control-plane-etcd-2-data:
-  control-plane-etcd-3-data:

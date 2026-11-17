@@ -8,7 +8,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log/slog"
 	"net/http"
 	"net/url"
 	"path"
@@ -193,7 +192,7 @@ func (kc *KeycloakClient) GetAllUsers() ([]domain.User, error) {
 	var result []domain.User
 	first := 0
 	for {
-		slog.Info("fetching users from keycloak", "realm", kc.RealmAlias, "first", first, "max", user_page_size)
+		//slog.Info("fetching users from keycloak", "realm", kc.RealmAlias, "first", first, "max", user_page_size)
 		keycloakUserResult, err := kc.getAllUsersPage(first)
 		if err != nil {
 			return result, err

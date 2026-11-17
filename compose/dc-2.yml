@@ -59,9 +59,6 @@ x-oauth2-proxy-base: &oauth2-proxy-base
   environment:
     OAUTH2_PROXY_CLIENT_SECRET: ${OIDC_CLIENT_SECRET:?run start.sh or copy .env.example to .env}
     OAUTH2_PROXY_COOKIE_SECRET: ${OAUTH2_PROXY_COOKIE_SECRET:?run start.sh or copy .env.example to .env}
-  depends_on:
-    keycloak:
-      condition: service_healthy
 
 services:
   keycloak-dc-2:

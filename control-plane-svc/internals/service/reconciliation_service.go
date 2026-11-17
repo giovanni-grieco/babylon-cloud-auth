@@ -44,21 +44,21 @@ func NewReconciliationService(reconciliationPeriod, staleAfter time.Duration, us
 // It never removes rows. A user whose username or email is already owned by
 // another realm is not imported: it is logged as a conflict.
 func (rs *ReconciliationService) BootstrapReconciliation(ctx context.Context) error {
-	slog.InfoContext(ctx, "Executing bootstrap reconciliation")
+	//slog.InfoContext(ctx, "Executing bootstrap reconciliation")
 	var errs []error
 	for _, keycloakClient := range rs.KeycloakClients {
 		if err := rs.importUnknownUsers(ctx, keycloakClient); err != nil {
 			errs = append(errs, fmt.Errorf("realm %s: %w", keycloakClient.RealmAlias, err))
 			continue
 		}
-		slog.InfoContext(ctx, "Bootstrap realm reconciliation completed", "realm", keycloakClient.RealmAlias)
+		//slog.InfoContext(ctx, "Bootstrap realm reconciliation completed", "realm", keycloakClient.RealmAlias)
 	}
-	slog.InfoContext(ctx, "Bootstrap reconciliation completed")
+	//slog.InfoContext(ctx, "Bootstrap reconciliation completed")
 	return errors.Join(errs...)
 }
 
 func (rs *ReconciliationService) importUnknownUsers(ctx context.Context, kc *clients.KeycloakClient) error {
-	slog.InfoContext(ctx, "reconciling realm users", "realm", kc.RealmAlias)
+	//slog.InfoContext(ctx, "reconciling realm users", "realm", kc.RealmAlias)
 	realmUsers, err := kc.GetAllUsers()
 	if err != nil {
 		return err
@@ -235,18 +235,17 @@ func (rs *ReconciliationService) StartLoop(ctx context.Context) {
 	go func() {
 		ticker := time.NewTicker(rs.ReconcilationPeriod)
 		defer ticker.Stop()
-
+		slog.InfoContext(ctx, "execute reconciliation loop", "every", rs.ReconcilationPeriod)
 		for {
 			select {
 			case <-ticker.C:
-				slog.InfoContext(ctx, "execute reconciliation loop")
 				if err := rs.Reconcile(ctx); err != nil {
 					slog.ErrorContext(ctx, "pending-state reconciliation failed", "error", err)
 				}
 				if err := rs.BootstrapReconciliation(ctx); err != nil {
 					slog.ErrorContext(ctx, "keycloak import failed", "error", err)
 				}
-				slog.InfoContext(ctx, "next reconciliation scheduled", "in", rs.ReconcilationPeriod)
+				//slog.InfoContext(ctx, "next reconciliation scheduled", "in", rs.ReconcilationPeriod)
 			case <-ctx.Done():
 				slog.InfoContext(ctx, "stopping reconciliation loop")
 				return
