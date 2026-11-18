@@ -36,26 +36,11 @@ x-oauth2-proxy-base: &oauth2-proxy-base
   image: quay.io/oauth2-proxy/oauth2-proxy:v7.12.0
   restart: unless-stopped # retries OIDC discovery if the issuer isn't reachable yet
   command:
-    - --http-address=0.0.0.0:4180
-    - --provider=keycloak-oidc
-    - --client-id=gateway
-    - --oidc-issuer-url=http://auth.babylon.test/realms/babylon
-    - --redirect-url=http://babylon.test/oauth2/callback
-    - --code-challenge-method=S256
-    - --email-domain=*
-    - --oidc-email-claim=sub # central tokens carry no email, by design
-    - --insecure-oidc-allow-unverified-email=true # there's no email_verified claim either
-    - --skip-provider-button=true
-    - --reverse-proxy=true
-    - --upstream=static://202 # authenticated: answer forwardAuth without proxying anywhere
-    - --set-xauthrequest=true
-    - --cookie-domain=.babylon.test
-    - --whitelist-domain=.babylon.test
-    - --cookie-secure=false # lab only; remove with HTTPS
-    - --cookie-refresh=4m # shorter than the 5 minute access token
-    - --cookie-expire=10h # matches Keycloak's SSO session max
-    #- --session-store-type=redis
-    #- --redis-connection-url=redis://state-kv:6379
+    - --config=/etc/oauth2-proxy/oauth2-proxy.cfg
+  volumes:
+    - ./oauth2-proxy/oauth2-proxy.cfg:/etc/oauth2-proxy/oauth2-proxy.cfg:ro
+  # Secrets stay out of the cfg file: oauth2-proxy reads OAUTH2_PROXY_* env vars,
+  # which take precedence over the config file.
   environment:
     OAUTH2_PROXY_CLIENT_SECRET: ${OIDC_CLIENT_SECRET:?run start.sh or copy .env.example to .env}
     OAUTH2_PROXY_COOKIE_SECRET: ${OAUTH2_PROXY_COOKIE_SECRET:?run start.sh or copy .env.example to .env}

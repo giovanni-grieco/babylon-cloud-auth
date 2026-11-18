@@ -12,7 +12,7 @@
 
 - Implementare strato di sicurezza per control plane: control-plane-keycloak, oauth-proxy, traefik gateway che mette in sicurezza le rotte per il control plane. Rendere gli altri keycloak, clients del control plane keycloak per ottenere i token di accesso da presentare a traefik.
 
-- Scalare orizzontalmente il keycloak centrale
+- Scalare orizzontalmente il keycloak centrale (FATTO, però con quantit)
 
 - Cambiare i temi dei keycloak
 
