@@ -95,6 +95,24 @@ services:
     networks:
       - edge-net
 
+  # Spreads auth.babylon.test over the central Keycloak nodes. It owns the
+  # "keycloak-central" name on edge-net, so nginx doesn't know how many nodes
+  # there are.
+  keycloak-central-lb:
+    image: haproxy:3.2-alpine
+    container_name: keycloak-central-lb
+    volumes:
+      - ./keycloak-central-lb/haproxy.cfg:/usr/local/etc/haproxy/haproxy.cfg:ro
+    ports:
+      - "127.0.0.1:8407:8404"  # HAProxy stats
+    networks:
+      edge-net:
+        aliases:
+          - keycloak-central  # nginx's upstream for auth.babylon.test
+    depends_on:
+      - keycloak-central-1
+      - keycloak-central-2
+
   keycloak-central-1:
     <<: *keycloak-base
     build: ./keycloak/central
