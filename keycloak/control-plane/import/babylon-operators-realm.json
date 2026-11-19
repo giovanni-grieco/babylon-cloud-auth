@@ -1,0 +1,69 @@
+{
+  "realm": "babylon-operators",
+  "displayName": "Babylon operators",
+  "enabled": true,
+  "sslRequired": "none",
+  "registrationAllowed": false,
+  "resetPasswordAllowed": false,
+  "rememberMe": false,
+  "loginWithEmailAllowed": true,
+  "duplicateEmailsAllowed": false,
+  "bruteForceProtected": true,
+  "accessTokenLifespan": 300,
+  "ssoSessionIdleTimeout": 1800,
+  "ssoSessionMaxLifespan": 28800,
+  "roles": {
+    "realm": [
+      {
+        "name": "operator",
+        "description": "May use the control plane console (checked by oauth2-proxy's allowed_roles)"
+      }
+    ]
+  },
+  "clients": [
+    {
+      "clientId": "control-plane-console",
+      "name": "Control plane console (oauth2-proxy)",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "secret": "${CP_CONSOLE_OIDC_CLIENT_SECRET}",
+      "standardFlowEnabled": true,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+      "redirectUris": [
+        "http://control-plane.babylon.test/oauth2/callback"
+      ],
+      "webOrigins": [],
+      "attributes": {
+        "pkce.code.challenge.method": "S256",
+        "post.logout.redirect.uris": "http://control-plane.babylon.test/*"
+      }
+    }
+  ],
+  "users": [
+    {
+      "username": "operator",
+      "email": "operator@control-plane.babylon.test",
+      "firstName": "Babylon",
+      "lastName": "Operator",
+      "enabled": true,
+      "emailVerified": true,
+      "requiredActions": [
+        "UPDATE_PASSWORD"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "value": "${CP_OPERATOR_PASSWORD}",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "default-roles-babylon-operators",
+        "operator"
+      ]
+    }
+  ]
+}

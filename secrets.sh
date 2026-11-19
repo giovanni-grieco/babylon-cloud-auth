@@ -34,3 +34,11 @@ add_secret CONTROL_PLANE_SECRET 32
 add_secret CONTROL_PLANE_DB_PASSWORD 32
 add_secret CONTROL_PLANE_DB_SUPERUSER_PASSWORD 32
 add_secret CONTROL_PLANE_DB_REPLICATION_PASSWORD 32
+
+# Operator login for the control plane console (its own Keycloak)
+add_secret CP_KC_DB_PASSWORD 24
+add_secret CP_KC_ADMIN_USERNAME 10
+add_secret CP_KC_ADMIN_PASSWORD 12
+add_secret CP_CONSOLE_OIDC_CLIENT_SECRET 32
+add_secret CP_CONSOLE_COOKIE_SECRET 16
+add_secret CP_OPERATOR_PASSWORD 12

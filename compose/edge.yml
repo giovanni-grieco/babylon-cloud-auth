@@ -84,6 +84,7 @@ services:
           - auth.babylon.test
           - auth.dc-1.babylon.test
           - auth.dc-2.babylon.test
+          - auth.control-plane.babylon.test
   
   # Catches the central realm's verification and password-reset emails (lab only).
   # Inbox: http://localhost:8025

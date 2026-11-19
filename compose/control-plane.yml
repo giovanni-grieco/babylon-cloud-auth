@@ -25,7 +25,8 @@ x-control-plane-svc-base: &control-plane-svc-base
   volumes:
     - ./control-plane-svc/config.json:/etc/control-plane/config.json:ro
   networks:
-    - edge-net              # reaches every Keycloak through the load balancer, like the browser
+    - edge-net
+    - control-plane-net
     - control-plane-db-net  # reaches the database load balancer
   depends_on:
     control-plane-db-lb:
@@ -75,6 +76,23 @@ x-control-plane-db-base: &control-plane-db-base
     - control-plane-etcd-2
     - control-plane-etcd-3
 
+x-control-plane-oauth2-proxy-base: &control-plane-oauth2-proxy-base
+  image: quay.io/oauth2-proxy/oauth2-proxy:v7.12.0
+  restart: unless-stopped # retries OIDC discovery if the issuer isn't reachable yet
+  command:
+    - --config=/etc/oauth2-proxy/oauth2-proxy.cfg
+  volumes:
+    - ./oauth2-proxy/control-plane.cfg:/etc/oauth2-proxy/oauth2-proxy.cfg:ro
+  environment:
+    OAUTH2_PROXY_CLIENT_SECRET: ${CP_CONSOLE_OIDC_CLIENT_SECRET:?run start.sh or copy .env.example to .env}
+    OAUTH2_PROXY_COOKIE_SECRET: ${CP_CONSOLE_COOKIE_SECRET:?run start.sh or copy .env.example to .env}
+  networks:
+    - edge-net
+    - control-plane-net
+  depends_on:
+    keycloak-control-plane:
+      condition: service_healthy
+
 services:
   control-plane-lb:
     image: haproxy:3.2-alpine
@@ -82,16 +100,92 @@ services:
     volumes:
       - ./control-plane-lb/haproxy.cfg:/usr/local/etc/haproxy/haproxy.cfg:ro
     ports:
-      - "127.0.0.1:9080:8080"  # console
+      - "127.0.0.1:9080:8080"  # console (operator login) + /api/v1/discover
       - "127.0.0.1:9081:8081"  # REST API
       - "127.0.0.1:8404:8404"  # HAProxy stats
     networks:
       edge-net:
         aliases:
           - control-plane  # nginx and Keycloak's HRD oracle URL point here
+      control-plane-net:
+        
     depends_on:
       - control-plane-svc-1
       - control-plane-svc-2
+      - control-plane-oauth2-proxy-1
+      - control-plane-oauth2-proxy-2
+
+  # Operator login: oauth2-proxy as a reverse proxy between control-plane-lb
+  # :8080 and :8082. Both instances share the cookie secret, so a session
+  # started on one is valid on the other.
+  control-plane-oauth2-proxy-1:
+    <<: *control-plane-oauth2-proxy-base
+    container_name: control-plane-oauth2-proxy-1
+
+  control-plane-oauth2-proxy-2:
+    <<: *control-plane-oauth2-proxy-base
+    container_name: control-plane-oauth2-proxy-2
+
+  # Operators' identity provider, separate from the central/DC Keycloaks so a
+  # B2C or B2B account can never reach the console. auth.control-plane.babylon.test
+  keycloak-control-plane:
+    image: quay.io/keycloak/keycloak:26.7.0
+    container_name: keycloak-control-plane
+    command: start-dev --import-realm # lab only; use `start` with HTTPS in production
+    restart: unless-stopped
+    environment:
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://keycloak-control-plane-db:5432/keycloak
+      KC_DB_USERNAME: keycloak
+      KC_DB_PASSWORD: ${CP_KC_DB_PASSWORD:?run start.sh or copy .env.example to .env}
+      KC_HOSTNAME: http://auth.control-plane.babylon.test
+      KC_PROXY_HEADERS: xforwarded
+      KC_HEALTH_ENABLED: "true"
+      KC_BOOTSTRAP_ADMIN_USERNAME: ${CP_KC_ADMIN_USERNAME:?run start.sh or copy .env.example to .env}
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${CP_KC_ADMIN_PASSWORD:?run start.sh or copy .env.example to .env}
+      # Read by the realm import
+      CP_CONSOLE_OIDC_CLIENT_SECRET: ${CP_CONSOLE_OIDC_CLIENT_SECRET:?run start.sh or copy .env.example to .env}
+      CP_OPERATOR_PASSWORD: ${CP_OPERATOR_PASSWORD:?run start.sh or copy .env.example to .env}
+      TZ: Europe/Rome
+    healthcheck:
+      # The image has no curl, so talk to the management port through bash.
+      test:
+        - CMD-SHELL
+        - >-
+          exec 3<>/dev/tcp/127.0.0.1/9000 &&
+          printf 'GET /health/ready HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n' >&3 &&
+          grep -q '"UP"' <&3
+      interval: 7s
+      timeout: 10s
+      retries: 30
+      start_period: 30s
+    volumes:
+      - ./keycloak/control-plane/import:/opt/keycloak/data/import:ro
+    networks:
+      - edge-net                       # nginx reaches it as auth.control-plane.babylon.test
+      - keycloak-control-plane-db-net
+    depends_on:
+      keycloak-control-plane-db:
+        condition: service_healthy
+
+  keycloak-control-plane-db:
+    image: postgres:17
+    container_name: keycloak-control-plane-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: keycloak
+      POSTGRES_DB: keycloak
+      POSTGRES_PASSWORD: ${CP_KC_DB_PASSWORD:?run start.sh or copy .env.example to .env}
+      TZ: Europe/Rome
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U keycloak -d keycloak"]
+      interval: 7s
+      timeout: 10s
+      retries: 5
+    volumes:
+      - keycloak-control-plane-db-data:/var/lib/postgresql/data
+    networks:
+      - keycloak-control-plane-db-net
 
   control-plane-svc-1:
     <<: *control-plane-svc-base
@@ -145,10 +239,16 @@ services:
 
 
 networks:
+  control-plane-net:
+    driver: bridge
   # Control plane database cluster: Patroni nodes and their load balancer.
   control-plane-db-net:
+    driver: bridge
+  # Operators' Keycloak and its database
+  keycloak-control-plane-db-net:
     driver: bridge
 
 volumes:
   control-plane-db-1-data:
   control-plane-db-2-data:
+  keycloak-control-plane-db-data:
