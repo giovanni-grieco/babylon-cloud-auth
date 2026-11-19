@@ -4,11 +4,18 @@
   "sslRequired": "none",
   "organizationsEnabled": true,
   "registrationAllowed": false,
+  "verifyEmail": true,
   "loginWithEmailAllowed": true,
   "duplicateEmailsAllowed": false,
   "accessTokenLifespan": 300,
   "ssoSessionIdleTimeout": 1800,
   "ssoSessionMaxLifespan": 36000,
+  "smtpServer": {
+    "host": "mailpit",
+    "port": "1025",
+    "from": "no-reply@babylon.test",
+    "fromDisplayName": "Babylon"
+  },
   "groups": [
     {
       "name": "service-a"
@@ -35,7 +42,8 @@
       ],
       "webOrigins": [],
       "defaultClientScopes": [
-        "basic"
+        "basic",
+        "email"
       ],
       "optionalClientScopes": [],
       "frontchannelLogout": false,

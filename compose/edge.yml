@@ -26,10 +26,10 @@ x-keycloak-base: &keycloak-base
         exec 3<>/dev/tcp/127.0.0.1/9000 &&
         printf 'GET /health/ready HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n' >&3 &&
         grep -q '"UP"' <&3
-    interval: 7s
-    timeout: 10s
+    interval: 15s
+    timeout: 15s
     retries: 30
-    start_period: 30s
+    start_period: 60s
 
 # Central Keycloak database: two Postgres nodes run by Patroni (shared image in
 # patroni-db/), one primary and one hot standby in synchronous replication.
@@ -54,10 +54,10 @@ x-keycloak-db-base: &keycloak-db-base
   healthcheck:
     # Patroni's /health is 200 while Postgres runs, as primary or replica.
     test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8008/health', timeout=3)"]
-    interval: 7s
-    timeout: 5s
-    retries: 10
-    start_period: 30s
+    interval: 15s
+    timeout: 15s
+    retries: 30
+    start_period: 60s
   networks:
     - keycloak-db-net   # reached only through keycloak-db-lb
     - central-etcd-net  # leader lock
