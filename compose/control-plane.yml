@@ -64,10 +64,10 @@ x-control-plane-db-base: &control-plane-db-base
   healthcheck:
     # Patroni's /health is 200 while Postgres runs, as primary or replica.
     test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8008/health', timeout=3)"]
-    interval: 7s
-    timeout: 5s
-    retries: 10
-    start_period: 30s
+    interval: 15s
+    timeout: 15s
+    retries: 30
+    start_period: 60s
   networks:
     - control-plane-db-net
     - central-etcd-net
@@ -155,10 +155,10 @@ services:
           exec 3<>/dev/tcp/127.0.0.1/9000 &&
           printf 'GET /health/ready HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n' >&3 &&
           grep -q '"UP"' <&3
-      interval: 7s
-      timeout: 10s
+      interval: 15s
+      timeout: 15s
       retries: 30
-      start_period: 30s
+      start_period: 60s
     volumes:
       - ./keycloak/control-plane/import:/opt/keycloak/data/import:ro
     networks:
@@ -179,9 +179,10 @@ services:
       TZ: Europe/Rome
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U keycloak -d keycloak"]
-      interval: 7s
-      timeout: 10s
-      retries: 5
+      interval: 15s
+      timeout: 15s
+      retries: 30
+      start_period: 60s
     volumes:
       - keycloak-control-plane-db-data:/var/lib/postgresql/data
     networks:

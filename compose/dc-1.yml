@@ -14,10 +14,10 @@ x-keycloak-base: &keycloak-base
         exec 3<>/dev/tcp/127.0.0.1/9000 &&
         printf 'GET /health/ready HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n' >&3 &&
         grep -q '"UP"' <&3
-    interval: 7s
-    timeout: 10s
+    interval: 15s
+    timeout: 15s
     retries: 30
-    start_period: 30s
+    start_period: 60s
 
 x-keycloak-db-env: &keycloak-db-env
   POSTGRES_USER: keycloak
@@ -28,9 +28,10 @@ x-keycloak-db-base: &keycloak-db-base
   image: postgres:17
   healthcheck:
     test: ["CMD-SHELL", "pg_isready -U keycloak -d keycloak"]
-    interval: 7s
-    timeout: 10s
-    retries: 5
+    interval: 15s
+    timeout: 15s
+    retries: 30
+    start_period: 60s
 
 x-oauth2-proxy-base: &oauth2-proxy-base
   image: quay.io/oauth2-proxy/oauth2-proxy:v7.12.0

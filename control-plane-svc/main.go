@@ -105,12 +105,14 @@ func main() {
 		panic(err)
 	}
 
-	keycloakClientDC1 := clients.NewKeycloakClientFromCfg(realmsCfg["dc-1"])
-	keycloakClientDC2 := clients.NewKeycloakClientFromCfg(realmsCfg["dc-2"])
+	/*keycloakClientDC1 := clients.NewKeycloakClientFromCfg(realmsCfg["dc-1"])
+	keycloakClientDC2 := clients.NewKeycloakClientFromCfg(realmsCfg["dc-2"])*/
 
 	var keycloakClients []*clients.KeycloakClient
-	keycloakClients = append(keycloakClients, keycloakClientDC1)
-	keycloakClients = append(keycloakClients, keycloakClientDC2)
+
+	for _, v := range realmsCfg {
+		keycloakClients = append(keycloakClients, clients.NewKeycloakClientFromCfg(v))
+	}
 
 	reconciliationService := service.NewReconciliationService(
 		time.Second*10,
