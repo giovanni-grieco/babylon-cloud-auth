@@ -76,7 +76,7 @@ public class HomeRealmDiscovererFactory implements AuthenticatorFactory {
                 .property()
                 .name(HomeRealmDiscoverer.CFG_ORACLE_SECRET)
                 .label("Oracle secret")
-                .helpText("Bearer token for the oracle. Use a vault reference: ${vault.oracle-secret}")
+                .helpText("Bearer token for the oracle. Use a vault reference: ${vault.CONTROL_PLANE_CLIENT_SECRET}")
                 .type(ProviderConfigProperty.PASSWORD)
                 .add()
                 .property()

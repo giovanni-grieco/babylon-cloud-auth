@@ -2,7 +2,7 @@
   {
     "id": "dc-1",
     "name": "DC 1",
-    "baseURL": "http://auth.dc-1.babylon.test",
+    "baseURL": "http://auth.dc1.babylon.test",
     "realm": "babylon",
     "clientID": "control-plane",
     "secretEnv": "DC1_CONTROL_PLANE_KEYCLOAK_CLIENT_SECRET"
@@ -10,7 +10,7 @@
   {
     "id": "dc-2",
     "name": "DC 2",
-    "baseURL": "http://auth.dc-2.babylon.test",
+    "baseURL": "http://auth.dc2.babylon.test",
     "realm": "babylon",
     "clientID": "control-plane",
     "secretEnv": "DC2_CONTROL_PLANE_KEYCLOAK_CLIENT_SECRET"

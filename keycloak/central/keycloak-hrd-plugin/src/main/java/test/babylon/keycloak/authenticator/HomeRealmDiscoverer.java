@@ -85,6 +85,7 @@ public class HomeRealmDiscoverer implements Authenticator{
             idpAlias = askOracle(context, hint);
         } catch (Exception e){
             // Oracle down/misconfigured: default to logging in on central
+            LOG.warn("Exception called: " + e.toString());
             LOG.warnf(e, "HRD oracle call on %s failed for realm %s, falling back to central login", CFG_ORACLE_URL, context.getRealm().getName());
             fallBackToCentral(context, hint);
             return;
@@ -111,7 +112,7 @@ public class HomeRealmDiscoverer implements Authenticator{
     private String askOracle(AuthenticationFlowContext context, String username) throws Exception {
         AuthenticatorConfigModel cfg = context.getAuthenticatorConfig();
         if (cfg == null || cfg.getConfig().get(CFG_ORACLE_URL) == null) {
-            throw new IllegalStateException("HRD authenticator not configured: missing " + CFG_ORACLE_URL);
+            throw new IllegalStateException("HRD authenticator not configured: issue on " + CFG_ORACLE_URL);
         }
         String url = cfg.getConfig().get(CFG_ORACLE_URL);
         if (url.isBlank()) {
@@ -143,7 +144,7 @@ public class HomeRealmDiscoverer implements Authenticator{
                 .asResponse()) {
 
             if (resp.getStatus() != 200) {
-                throw new IllegalStateException("Oracle returned HTTP " + resp.getStatus());
+                throw new IllegalStateException("Oracle at "+url +" returned HTTP " + resp.getStatus());
             }
             JsonNode idp = resp.asJson().get("idp");
             return (idp == null || idp.isNull() || idp.asText().isBlank()) ? null : idp.asText();

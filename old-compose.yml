@@ -161,9 +161,11 @@ services:
         aliases:
           # Containers resolve the issuer to nginx, exactly like the browser does,
           # so the token issuer URL is the same on both sides.
+          - dc1.babylon.test
+          - dc2.babylon.test
           - auth.babylon.test
-          - auth.dc-1.babylon.test
-          - auth.dc-2.babylon.test
+          - auth.dc1.babylon.test
+          - auth.dc2.babylon.test
 
   # Catches the central realm's verification and password-reset emails (lab only).
   # Inbox: http://localhost:8025

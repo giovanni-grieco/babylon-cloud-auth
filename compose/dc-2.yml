@@ -1,8 +1,13 @@
+x-realm-env: &realm-env
+  REALM: dc2
+
 x-keycloak-env: &keycloak-env
   KC_DB: postgres
   KC_DB_USERNAME: keycloak
   KC_PROXY_HEADERS: xforwarded
   KC_HEALTH_ENABLED: "true"
+  KC_VAULT: file
+  KC_VAULT_DIR: /run/secrets
 
 x-keycloak-base: &keycloak-base
   command: start-dev --import-realm # lab only; use `start` with HTTPS in production
@@ -15,9 +20,9 @@ x-keycloak-base: &keycloak-base
         printf 'GET /health/ready HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n' >&3 &&
         grep -q '"UP"' <&3
     interval: 15s
-    timeout: 15s
+    timeout: 30s
     retries: 30
-    start_period: 60s
+    start_period: 120s
 
 x-keycloak-db-env: &keycloak-db-env
   POSTGRES_USER: keycloak
@@ -29,9 +34,9 @@ x-keycloak-db-base: &keycloak-db-base
   healthcheck:
     test: ["CMD-SHELL", "pg_isready -U keycloak -d keycloak"]
     interval: 15s
-    timeout: 15s
+    timeout: 30s
     retries: 30
-    start_period: 60s
+    start_period: 120s
 
 x-oauth2-proxy-base: &oauth2-proxy-base
   image: quay.io/oauth2-proxy/oauth2-proxy:v7.12.0
@@ -43,7 +48,7 @@ x-oauth2-proxy-base: &oauth2-proxy-base
   # Secrets stay out of the cfg file: oauth2-proxy reads OAUTH2_PROXY_* env vars,
   # which take precedence over the config file.
   environment:
-    OAUTH2_PROXY_CLIENT_SECRET: ${OIDC_CLIENT_SECRET:?run start.sh or copy .env.example to .env}
+    OAUTH2_PROXY_CLIENT_SECRET: ${OAUTH2_PROXY_OIDC_CLIENT_SECRET:?run start.sh or copy .env.example to .env}
     OAUTH2_PROXY_COOKIE_SECRET: ${OAUTH2_PROXY_COOKIE_SECRET:?run start.sh or copy .env.example to .env}
 
 services:
@@ -54,13 +59,14 @@ services:
     environment:
       <<: *keycloak-env
       KC_DB_URL: jdbc:postgresql://keycloak-dc-2-db:5432/keycloak
-      KC_DB_PASSWORD: ${DC2_DB_PASSWORD:?run start.sh or copy .env.example to .env}
-      KC_HOSTNAME: http://auth.dc-2.babylon.test
-      KC_BOOTSTRAP_ADMIN_USERNAME: ${DC2_ADMIN_USERNAME:?run start.sh or copy .env.example to .env}
-      KC_BOOTSTRAP_ADMIN_PASSWORD: ${DC2_ADMIN_PASSWORD:?run start.sh or copy .env.example to .env}
-      # Read by the realm import
-      DC2_BROKER_SECRET: ${DC2_BROKER_SECRET:?run start.sh or copy .env.example to .env}
-      DC2_CONTROL_PLANE_KEYCLOAK_CLIENT_SECRET: ${DC2_CONTROL_PLANE_KEYCLOAK_CLIENT_SECRET:?run start.sh or copy .env.example to .env}
+      KC_DB_PASSWORD: ${DC2_KEYCLOAK_DB_PASSWORD:?run start.sh or copy .env.example to .env}
+      KC_HOSTNAME: http://auth.dc2.babylon.test
+      KC_BOOTSTRAP_ADMIN_USERNAME: ${DC2_KEYCLOAK_ADMIN_USERNAME:?run start.sh or copy .env.example to .env}
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${DC2_KEYCLOAK_ADMIN_PASSWORD:?run start.sh or copy .env.example to .env}
+
+    secrets:
+      - babylon_CENTRAL-KEYCLOAK-DC2-BROKER-SECRET
+      - babylon_DC2-CONTROL-PLANE-KEYCLOAK-CLIENT-SECRET
     volumes:
       - ./keycloak/dc-2/import:/opt/keycloak/data/import:ro
     networks:
@@ -75,7 +81,7 @@ services:
     container_name: keycloak-dc-2-db
     environment:
       <<: *keycloak-db-env
-      POSTGRES_PASSWORD: ${DC2_DB_PASSWORD:?run start.sh or copy .env.example to .env}
+      POSTGRES_PASSWORD: ${DC2_KEYCLOAK_DB_PASSWORD:?run start.sh or copy .env.example to .env}
     ports:
       - "5432:5432" # lab only; remove with HTTPS
     volumes:
@@ -129,7 +135,8 @@ services:
     volumes:
       - ./mock-svc/templates:/app/templates:ro
     environment:
-      - CONSUL_ADDR=consul
+      <<: *realm-env
+      CONSUL_ADDR: consul
     networks:
       - cluster-net-2
     depends_on:
@@ -141,7 +148,8 @@ services:
     volumes:
       - ./mock-svc/templates:/app/templates:ro
     environment:
-      - CONSUL_ADDR=consul
+      <<: *realm-env
+      CONSUL_ADDR: consul
     networks:
       - cluster-net-2
     depends_on:
@@ -153,3 +161,10 @@ networks:
     driver: bridge
   keycloak-dc-2-net:
     driver: bridge
+
+secrets:
+  babylon_CENTRAL-KEYCLOAK-DC2-BROKER-SECRET:
+    environment: CENTRAL_KEYCLOAK_DC2_BROKER_SECRET
+
+  babylon_DC2-CONTROL-PLANE-KEYCLOAK-CLIENT-SECRET:
+    environment: DC2_CONTROL_PLANE_KEYCLOAK_CLIENT_SECRET

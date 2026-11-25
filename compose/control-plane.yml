@@ -10,8 +10,8 @@ x-control-plane-svc-base: &control-plane-svc-base
     WEB_PORT:   "8080"
     REST_PORT:  "8081"
     CP_CONFIG: /etc/control-plane/config.json
-    CONTROL_PLANE_SECRET: ${CONTROL_PLANE_SECRET:?run start.sh or copy .env.example to .env}
-    CENTRAL_CONTROL_PLANE_KEYCLOAK_CLIENT_SECRET: ${CENTRAL_CONTROL_PLANE_KEYCLOAK_CLIENT_SECRET:? run start.sh or copy .env.example to .env}
+    CONTROL_PLANE_SECRET: ${CONTROL_PLANE_CLIENT_SECRET:?run start.sh or copy .env.example to .env}
+    CENTRAL_CONTROL_PLANE_KEYCLOAK_CLIENT_SECRET: ${CONTROL_PLANE_CENTRAL_KEYCLOAK_CLIENT_SECRET:? run start.sh or copy .env.example to .env}
     DC1_CONTROL_PLANE_KEYCLOAK_CLIENT_SECRET: ${DC1_CONTROL_PLANE_KEYCLOAK_CLIENT_SECRET:?run start.sh or copy .env.example to .env}
     DC2_CONTROL_PLANE_KEYCLOAK_CLIENT_SECRET: ${DC2_CONTROL_PLANE_KEYCLOAK_CLIENT_SECRET:?run start.sh or copy .env.example to .env}
     POSTGRES_HOST: control-plane-db  # control-plane-db-lb, always the primary

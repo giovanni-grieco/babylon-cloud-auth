@@ -5,12 +5,19 @@ import socket
 import sys
 import threading
 import time
+import base64
+import json
 
 import requests
 from flask import Flask, render_template, request
 
 app = Flask(__name__)
 app.config["TEMPLATES_AUTO_RELOAD"] = True
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(message)s",
+)
+app.logger.setLevel(logging.INFO)
 
 
 class HealthCheckFilter(logging.Filter):
@@ -26,6 +33,7 @@ SERVICE_NAME = "mock"
 SERVICE_PORT = 8888
 CONSUL_ADDR = os.getenv("CONSUL_ADDR", "consul")
 CONSUL_PORT = os.getenv("CONSUL_PORT", "8500")
+MOCK_SVC_REALM = os.getenv("REALM", "UNKNOWN")
 
 # Unique per container; used as the Consul service instance ID.
 instance_id = socket.gethostname()
@@ -68,16 +76,16 @@ def register() -> bool:
     except requests.RequestException:
         ok = False
     if ok:
-        print(f"registered with Consul as {instance_id} ({payload['Address']})", flush=True)
+        app.logger.debug(f"registered with Consul as {instance_id} ({payload['Address']})", flush=True)
     return ok
 
 
 def deregister() -> None:
     try:
         requests.put(f"{agent_url()}/service/deregister/{instance_id}", timeout=5)
-        print(f"deregistered {instance_id} from Consul", flush=True)
+        app.logger.debug(f"deregistered {instance_id} from Consul", flush=True)
     except requests.RequestException as exc:
-        print(f"deregistration failed: {exc}", flush=True)
+        app.logger.debug(f"deregistration failed: {exc}", flush=True)
 
 
 def register_loop() -> None:
@@ -107,15 +115,33 @@ def hello_world():
 @app.route("/doOperation")
 def doOperation():
     # Set by Traefik from oauth2-proxy's answer; this route is behind auth-middleware.
+
+    b64JWTAccessToken: str = request.headers.get("X-Auth-Request-Access-Token")
+    #app.logger.info("b64JWTAccessToken: "+b64JWTAccessToken)
+    jwtParts: list[str] = b64JWTAccessToken.split(".")
+    jwtHeader = jwtParts[0]
+    #app.logger.info(jwtHeader)
+    jwtBody = jwtParts[1]
+    #app.logger.info(jwtBody)
+    accessTokenJSON = base64.b64decode(jwtBody+ "==", validate=False)
+    #app.logger.info(accessTokenJSON)
+
+    accessToken = json.loads(accessTokenJSON)
+
+
+
     return render_template(
         "doOperation.html",
         instance_id=instance_id,
+        instance_realm = MOCK_SVC_REALM,
         user_id=request.headers.get("X-Auth-Request-User", ""),
         username=request.headers.get("X-Auth-Request-Preferred-Username", ""),
         email=request.headers.get("X-Auth-Request-Email", ""),
         groups=request.headers.get("X-Auth-Request-Groups", ""),
+        realm=accessToken.get("realm", "B2C"),
+        access_token = accessTokenJSON.decode()
     )
 
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=SERVICE_PORT, debug=False)
+    app.run(host="0.0.0.0", port=SERVICE_PORT, debug=True)

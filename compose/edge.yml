@@ -13,6 +13,14 @@ x-keycloak-env: &keycloak-env
   KC_DB_POOL_MIN_SIZE: "5"
   KC_DB_POOL_MAX_SIZE: "30"
 
+  KC_DB_URL: jdbc:postgresql://keycloak-db:5432/keycloak
+  KC_DB_PASSWORD: ${CENTRAL_KC_DB_PASSWORD:?run start.sh or copy .env.example to .env}
+  KC_BOOTSTRAP_ADMIN_USERNAME: ${CENTRAL_KC_ADMIN_USERNAME:?run start.sh or copy .env.example to .env}
+  KC_BOOTSTRAP_ADMIN_PASSWORD: ${CENTRAL_KC_ADMIN_PASSWORD:?run start.sh or copy .env.example to .env}
+  HRD_ORACLE_URL: http://control-plane:8081/api/v1/discover
+  KC_VAULT: file
+  KC_VAULT_DIR: /run/secrets
+
 x-keycloak-base: &keycloak-base
   command: start --import-realm # plain HTTP behind nginx (KC_HTTP_ENABLED): lab only
   # Exits when the database isn't reachable yet (Patroni is still electing a
@@ -38,13 +46,13 @@ x-keycloak-base: &keycloak-base
 x-keycloak-db-env: &keycloak-db-env
   PATRONI_SCOPE: keycloak
   PATRONI_SUPERUSER_USERNAME: postgres
-  PATRONI_SUPERUSER_PASSWORD: ${KC_DB_SUPERUSER_PASSWORD:?run start.sh or copy .env.example to .env}
+  PATRONI_SUPERUSER_PASSWORD: ${CENTRAL_KC_DB_SUPERUSER_PASSWORD:?run start.sh or copy .env.example to .env}
   PATRONI_REPLICATION_USERNAME: replicator
-  PATRONI_REPLICATION_PASSWORD: ${KC_DB_REPLICATION_PASSWORD:?run start.sh or copy .env.example to .env}
+  PATRONI_REPLICATION_PASSWORD: ${CENTRAL_KC_DB_REPLICATION_PASSWORD:?run start.sh or copy .env.example to .env}
   # Read by post_bootstrap.sh when the cluster is first created
   APP_DB_USER: keycloak
   APP_DB_NAME: keycloak
-  APP_DB_PASSWORD: ${KC_DB_PASSWORD:?run start.sh or copy .env.example to .env}
+  APP_DB_PASSWORD: ${CENTRAL_KC_DB_PASSWORD:?run start.sh or copy .env.example to .env}
   TZ: Europe/Rome
 
 x-keycloak-db-base: &keycloak-db-base
@@ -67,8 +75,6 @@ x-keycloak-db-base: &keycloak-db-base
     - control-plane-etcd-3
 
 services:
-
-
   load-balancer:
     image: nginx:alpine
     container_name: load-balancer
@@ -82,8 +88,8 @@ services:
           # Containers resolve the issuer to nginx, exactly like the browser does,
           # so the token issuer URL is the same on both sides.
           - auth.babylon.test
-          - auth.dc-1.babylon.test
-          - auth.dc-2.babylon.test
+          - auth.dc1.babylon.test
+          - auth.dc2.babylon.test
           - auth.control-plane.babylon.test
   
   # Catches the central realm's verification and password-reset emails (lab only).
@@ -120,23 +126,12 @@ services:
     container_name: keycloak-central-1
     environment:
       <<: *keycloak-env
-      KC_DB_URL: jdbc:postgresql://keycloak-db:5432/keycloak
-      KC_DB_PASSWORD: ${KC_DB_PASSWORD:?run start.sh or copy .env.example to .env}
-      KC_HOSTNAME: http://auth.babylon.test
-      KC_BOOTSTRAP_ADMIN_USERNAME: ${KC_ADMIN_USERNAME:?run start.sh or copy .env.example to .env}
-      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KC_ADMIN_PASSWORD:?run start.sh or copy .env.example to .env}
-      # Read by the realm import
-      OIDC_CLIENT_SECRET: ${OIDC_CLIENT_SECRET:?run start.sh or copy .env.example to .env}
-      DC1_BROKER_SECRET: ${DC1_BROKER_SECRET:?run start.sh or copy .env.example to .env}
-      DC2_BROKER_SECRET: ${DC2_BROKER_SECRET:?run start.sh or copy .env.example to .env}
-      # Home realm discovery oracle (babylon-hrd authenticator). Unset or unreachable:
-      # every user falls back to the central (B2C) login.
-      CENTRAL_CONTROL_PLANE_KEYCLOAK_CLIENT_SECRET: ${CENTRAL_CONTROL_PLANE_KEYCLOAK_CLIENT_SECRET}
-      HRD_ORACLE_URL: http://control-plane:8081/api/v1/discover
-      KC_VAULT: file
-      KC_VAULT_DIR: /run/secrets
     secrets:
-      - babylon_oracle-secret
+        - babylon_CONTROL-PLANE-CENTRAL-KEYCLOAK-CLIENT-SECRET
+        - babylon_OAUTH2-PROXY-OIDC-CLIENT-SECRET
+        - babylon_CENTRAL-KEYCLOAK-DC1-BROKER-SECRET
+        - babylon_CENTRAL-KEYCLOAK-DC2-BROKER-SECRET
+        - babylon_CONTROL-PLANE-CLIENT-SECRET
     volumes:
       - ./keycloak/central/import:/opt/keycloak/data/import:ro
     networks:
@@ -151,23 +146,12 @@ services:
     container_name: keycloak-central-2
     environment:
       <<: *keycloak-env
-      KC_DB_URL: jdbc:postgresql://keycloak-db:5432/keycloak
-      KC_DB_PASSWORD: ${KC_DB_PASSWORD:?run start.sh or copy .env.example to .env}
-      KC_HOSTNAME: http://auth.babylon.test
-      KC_BOOTSTRAP_ADMIN_USERNAME: ${KC_ADMIN_USERNAME:?run start.sh or copy .env.example to .env}
-      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KC_ADMIN_PASSWORD:?run start.sh or copy .env.example to .env}
-      # Read by the realm import
-      OIDC_CLIENT_SECRET: ${OIDC_CLIENT_SECRET:?run start.sh or copy .env.example to .env}
-      DC1_BROKER_SECRET: ${DC1_BROKER_SECRET:?run start.sh or copy .env.example to .env}
-      DC2_BROKER_SECRET: ${DC2_BROKER_SECRET:?run start.sh or copy .env.example to .env}
-      # Home realm discovery oracle (babylon-hrd authenticator). Unset or unreachable:
-      # every user falls back to the central (B2C) login.
-      CENTRAL_CONTROL_PLANE_KEYCLOAK_CLIENT_SECRET: ${CENTRAL_CONTROL_PLANE_KEYCLOAK_CLIENT_SECRET}
-      HRD_ORACLE_URL: http://control-plane:8081/api/v1/discover
-      KC_VAULT: file
-      KC_VAULT_DIR: /run/secrets
     secrets:
-      - babylon_oracle-secret
+        - babylon_CONTROL-PLANE-CENTRAL-KEYCLOAK-CLIENT-SECRET
+        - babylon_OAUTH2-PROXY-OIDC-CLIENT-SECRET
+        - babylon_CENTRAL-KEYCLOAK-DC1-BROKER-SECRET
+        - babylon_CENTRAL-KEYCLOAK-DC2-BROKER-SECRET
+        - babylon_CONTROL-PLANE-CLIENT-SECRET
     volumes:
       - ./keycloak/central/import:/opt/keycloak/data/import:ro
     networks:
@@ -234,6 +218,18 @@ volumes:
   keycloak-db-1-data:
   keycloak-db-2-data:
 
-secrets:
-  babylon_oracle-secret:
-    environment: CONTROL_PLANE_SECRET
+secrets: # I segreti per keycloak devono avere la sintassi <nome_realm>_<nomesegreto>. Nel nostro caso il realm creato è "babylon"
+  babylon_CONTROL-PLANE-CENTRAL-KEYCLOAK-CLIENT-SECRET:
+    environment: CONTROL_PLANE_CENTRAL_KEYCLOAK_CLIENT_SECRET
+
+  babylon_OAUTH2-PROXY-OIDC-CLIENT-SECRET:
+    environment: OAUTH2_PROXY_OIDC_CLIENT_SECRET
+
+  babylon_CENTRAL-KEYCLOAK-DC1-BROKER-SECRET:
+    environment: CENTRAL_KEYCLOAK_DC1_BROKER_SECRET
+
+  babylon_CENTRAL-KEYCLOAK-DC2-BROKER-SECRET:
+    environment: CENTRAL_KEYCLOAK_DC2_BROKER_SECRET
+
+  babylon_CONTROL-PLANE-CLIENT-SECRET:
+    environment: CONTROL_PLANE_CLIENT_SECRET
