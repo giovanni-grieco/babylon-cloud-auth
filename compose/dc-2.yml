@@ -44,7 +44,7 @@ x-oauth2-proxy-base: &oauth2-proxy-base
   command:
     - --config=/etc/oauth2-proxy/oauth2-proxy.cfg
   volumes:
-    - ./oauth2-proxy/oauth2-proxy.cfg:/etc/oauth2-proxy/oauth2-proxy.cfg:ro
+    - ./oauth2-proxy/realms-oauth2-proxy.cfg:/etc/oauth2-proxy/oauth2-proxy.cfg:ro
   # Secrets stay out of the cfg file: oauth2-proxy reads OAUTH2_PROXY_* env vars,
   # which take precedence over the config file.
   environment:
