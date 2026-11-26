@@ -1,0 +1,15 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Error</title>
+</head>
+<body>
+    <main>
+        <h1>Something went wrong</h1>
+        <p th:text="${errorMsg}">An error occurred while processing your request.</p>
+        <p><a th:href="@{/posts}">Back to posts</a></p>
+    </main>
+</body>
+</html>

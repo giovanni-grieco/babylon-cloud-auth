@@ -8,13 +8,18 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.server.ResponseStatusException;
+import org.springframework.web.servlet.mvc.support.RedirectAttributes;
+import org.apache.tomcat.util.buf.Utf8Encoder;
 import org.springframework.http.HttpStatus;
 
 import lombok.AllArgsConstructor;
 
+import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 import java.util.NoSuchElementException;
+
+import test.babylon.blog.core.domain.Post;
 import test.babylon.blog.core.services.PostService;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
@@ -41,7 +46,8 @@ public class PostController {
             @RequestParam("title") String title,
             @RequestParam("body") String body,
             @RequestHeader(name = "X-Auth-Request-Email", required = true) String authorEmail,
-            @RequestHeader("X-Auth-Request-Access-Token") String accessToken) {
+            @RequestHeader("X-Auth-Request-Access-Token") String accessToken,
+            RedirectAttributes redirectAttributes) throws Exception{
         
         String payload = new String(
             Base64.getUrlDecoder().decode(accessToken.split("\\.")[1]),
@@ -50,11 +56,20 @@ public class PostController {
         ObjectMapper mapper = new ObjectMapper();
         JsonNode claims = mapper.readTree(payload);
         String realm = claims.path("realm").asString();
-
-        postService.NewPost(title, body, authorEmail, realm);
-        return "redirect:/posts";
+        try{
+            Post newPost = postService.NewPost(title, body, authorEmail, realm);
+            return "redirect:/posts/"+newPost.getId();
+        }catch (Exception e){
+            redirectAttributes.addAttribute("message", "Not Authorized");
+            return "redirect:/post/error";
+        }
     }
 
+    @GetMapping("/post/error")
+    public String postError(@RequestParam("message") String errorMsg, Model model) {
+        model.addAttribute("errorMsg", errorMsg);
+        return "error";
+    }
     @GetMapping("/posts/{postId}")
     public String getPost(@PathVariable Long postId, Model model) {
         try {
