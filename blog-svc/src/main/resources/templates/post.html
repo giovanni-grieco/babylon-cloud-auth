@@ -1,0 +1,18 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title th:text="${post.title}">Post</title>
+</head>
+<body>
+    <main>
+        <p><a th:href="@{/posts}">Back to posts</a></p>
+        <article>
+            <h1 th:text="${post.title}">Post title</h1>
+            <p>By <span th:text="${post.author}">Author</span></p>
+            <p th:text="${post.body}">Post body</p>
+        </article>
+    </main>
+</body>
+</html>

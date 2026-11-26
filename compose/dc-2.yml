@@ -155,6 +155,40 @@ services:
     depends_on:
       - consul-2
 
+  blog-svc-2:
+    build: ./blog-svc
+    container_name: blog-svc-2
+    environment:
+      <<: *realm-env
+      BLOG_HTTP_PORT: 8080
+      BLOG_DB_URL: jdbc:postgresql://blog-db:5432/blog
+      BLOG_DB_USERNAME: ${BLOG_DB_USER}
+      BLOG_DB_PASSWORD: ${BLOG_DB_PASSWORD}
+    networks:
+      cluster-net-2:
+       aliases:
+        - blog-svc
+    depends_on:
+      - blog-db-2
+
+  blog-db-2:
+    image: postgres:17
+    container_name: blog-db-2
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U keycloak -d keycloak"]
+      interval: 15s
+      timeout: 30s
+      retries: 30
+      start_period: 120s
+    environment:
+      POSTGRES_DB: blog
+      POSTGRES_USER: ${BLOG_DB_USER}
+      POSTGRES_PASSWORD: ${BLOG_DB_PASSWORD}
+    networks:
+      cluster-net-2:
+        aliases:
+          - blog-db
+
 
 networks:
   cluster-net-2:

@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Posts</title>
+</head>
+<body>
+    <main>
+        <h1>Posts</h1>
+        <p><a th:href="@{/posts/new}">Create a post</a></p>
+        <p th:if="${#lists.isEmpty(posts)}">There are no posts yet.</p>
+        <ul th:unless="${#lists.isEmpty(posts)}">
+            <li th:each="post : ${posts}">
+                <a th:href="@{/posts/{postId}(postId=${post.id})}"
+                   th:text="${post.title}">Post title</a>
+            </li>
+        </ul>
+    </main>
+</body>
+</html>

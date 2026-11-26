@@ -23,6 +23,12 @@ http:
       middlewares: [auth-middleware]
       service: mock@consulcatalog
 
+    blog-router-protected:
+      entryPoints: [web]
+      rule: "PathPrefix(`/post`) || PathPrefix(`/posts`)"
+      middlewares: [auth-middleware]
+      service: blog-svc
+
     oauth2-router:
       entryPoints: [web]
       rule: "PathPrefix(`/oauth2/`)"
@@ -33,3 +39,8 @@ http:
       loadBalancer:
         servers:
           - url: "http://oauth2-proxy:4180"
+    
+    blog-svc:
+      loadBalancer:
+        servers:
+          - url: "http://blog-svc:8080"
