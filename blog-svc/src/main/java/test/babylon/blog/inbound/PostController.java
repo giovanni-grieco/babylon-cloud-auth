@@ -9,16 +9,11 @@ import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
-import org.apache.tomcat.util.buf.Utf8Encoder;
 import org.springframework.http.HttpStatus;
-
 import lombok.AllArgsConstructor;
-
-import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 import java.util.NoSuchElementException;
-
 import test.babylon.blog.core.domain.Post;
 import test.babylon.blog.core.services.PostService;
 import tools.jackson.databind.JsonNode;
